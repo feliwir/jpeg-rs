@@ -1,0 +1,17 @@
+[package]
+name = "jpeg"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+jpeg-common = { version = "0.1.0", path = "../jpeg-common" }
+log.workspace = true
+
+[dev-dependencies]
+test-log = "0.2.19"
+criterion = "0.5"
+testutil = { path = "../testutil" }
+
+[[bench]]
+name = "idct_bench"
+harness = false
