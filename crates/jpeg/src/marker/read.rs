@@ -7,6 +7,7 @@ use crate::{
     constants::UN_ZIGZAG,
     error::DecodeError,
     huffman::HuffmanTable,
+    idct,
 };
 
 /// Section:`B.2.2 Frame header syntax`

@@ -3,8 +3,9 @@ use jpeg_common::options::{DecoderOptions, SimdBackend};
 use testutil::{save_pixels_as_pgm, save_pixels_as_ppm};
 
 #[test_log::test]
-fn decode_baseline_jpeg400() {
-    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg400jfif.jpg");
+#[ignore = "Progressive decoding is currently not supported"]
+fn decode_progressive_jpeg400_scalar() {
+    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg400jfif.prog.jpg");
 
     for backend in SimdBackend::iter() {
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
@@ -18,7 +19,7 @@ fn decode_baseline_jpeg400() {
 
         // Write out the decoded pixels to a PGM file for visual verification
         save_pixels_as_pgm(
-            &format!("jpeg400jfif_{:?}.pgm", backend),
+            &format!("jpeg400jfif.prog_{:?}.pgm", backend),
             &pixels,
             info.width,
             info.height,
@@ -28,8 +29,9 @@ fn decode_baseline_jpeg400() {
 }
 
 #[test_log::test]
-fn decode_baseline_jpeg420() {
-    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg420exif.jpg");
+#[ignore = "Progressive decoding is currently not supported"]
+fn decode_progressive_jpeg420_scalar() {
+    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg420exif.prog.jpg");
 
     for backend in SimdBackend::iter() {
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
@@ -43,7 +45,7 @@ fn decode_baseline_jpeg420() {
 
         // Write out the decoded pixels to a PPM file for visual verification
         save_pixels_as_ppm(
-            &format!("jpeg420exif_{:?}.ppm", backend),
+            &format!("jpeg420exif.prog_{:?}.ppm", backend),
             &pixels,
             info.width,
             info.height,
@@ -52,8 +54,9 @@ fn decode_baseline_jpeg420() {
 }
 
 #[test_log::test]
-fn decode_baseline_jpeg422() {
-    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg422jfif.jpg");
+#[ignore = "Progressive decoding is currently not supported"]
+fn decode_progressive_jpeg422_scalar() {
+    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg422jfif.prog.jpg");
     for backend in SimdBackend::iter() {
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
@@ -66,7 +69,7 @@ fn decode_baseline_jpeg422() {
 
         // Write out the decoded pixels to a PPM file for visual verification
         save_pixels_as_ppm(
-            &format!("jpeg422jfif_{:?}.ppm", backend),
+            &format!("jpeg422jfif.prog_{:?}.ppm", backend),
             &pixels,
             info.width,
             info.height,
@@ -75,8 +78,9 @@ fn decode_baseline_jpeg422() {
 }
 
 #[test_log::test]
-fn decode_baseline_jpeg444() {
-    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg444.jpg");
+#[ignore = "Progressive decoding is currently not supported"]
+fn decode_progressive_jpeg444_scalar() {
+    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg444.prog.jpg");
     for backend in SimdBackend::iter() {
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
@@ -89,7 +93,7 @@ fn decode_baseline_jpeg444() {
 
         // Write out the decoded pixels to a PPM file for visual verification
         save_pixels_as_ppm(
-            &format!("jpeg444_{:?}.ppm", backend),
+            &format!("jpeg444.prog_{:?}.ppm", backend),
             &pixels,
             info.width,
             info.height,

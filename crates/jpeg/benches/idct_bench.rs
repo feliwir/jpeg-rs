@@ -59,7 +59,7 @@ fn bench_idct(c: &mut Criterion) {
     group.bench_function("neon", |b| {
         b.iter(|| {
             let mut block_copy = block;
-            idct::neon::idct::<8>(&mut block_copy);
+            unsafe { idct::neon::idct::<8>(&mut block_copy) };
         })
     });
 
@@ -67,7 +67,7 @@ fn bench_idct(c: &mut Criterion) {
     group.bench_function("neon_fixed", |b| {
         b.iter(|| {
             let mut block_copy = block;
-            idct::neon::idct_fixed::<8>(&mut block_copy);
+            unsafe { idct::neon::idct_fixed::<8>(&mut block_copy) };
         })
     });
 

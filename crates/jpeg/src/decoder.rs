@@ -126,6 +126,14 @@ impl<R: BufRead> JpegDecoder<R> {
 
                     log::trace!("Image encoding scheme =`{:?}`", marker);
                     marker::read_start_of_frame(self, marker)?;
+
+                    // Check if we need to switch the IDCT function based on the precision (if it's not 8 bits per sample, we need to use a different IDCT function)
+                    if self.info.precision != 8 {
+                        self.idct_fn = idct::select_idct_fn(
+                            self.info.precision,
+                            self.options.forced_simd_backend(),
+                        );
+                    }
                 }
                 Marker::SOF(v) => {
                     return Err(DecodeError::Unsupported(format!(

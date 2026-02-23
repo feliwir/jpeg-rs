@@ -2,27 +2,6 @@
 // Intrinsics
 use super::COS_TABLE;
 
-/// Preloaded cosine tables for NEON.
-struct CosTableNeon {
-    lo: [float32x4_t; 8],
-    hi: [float32x4_t; 8],
-}
-
-#[inline(always)]
-fn load_cos_table(cos_table: &[[f32; 8]; 8]) -> CosTableNeon {
-    unsafe {
-        let mut lo = [vdupq_n_f32(0.0); 8];
-        let mut hi = [vdupq_n_f32(0.0); 8];
-
-        for i in 0..8 {
-            lo[i] = vld1q_f32(cos_table[i].as_ptr());
-            hi[i] = vld1q_f32(cos_table[i].as_ptr().add(4));
-        }
-
-        CosTableNeon { lo, hi }
-    }
-}
-
 /// Perform the 2D Inverse Discrete Cosine Transform on an 8×8 block.
 ///
 /// This performs a column-row decomposition of the 2D IDCT,
@@ -42,14 +21,12 @@ pub fn idct<const PRECISION: u8>(block: &mut [i32; 64]) {
         input[i] = block[i] as f32;
     }
 
-    let cos_table_neon = load_cos_table(&COS_TABLE);
-
     // ----- Row pass -----
     for row in 0..8 {
         idct_1d(
             &input[row * 8..row * 8 + 8],
             &mut tmp[row * 8..row * 8 + 8],
-            &cos_table_neon,
+            &COS_TABLE,
         )
     }
 
@@ -62,7 +39,7 @@ pub fn idct<const PRECISION: u8>(block: &mut [i32; 64]) {
             col_in[row] = tmp[row * 8 + col];
         }
 
-        idct_1d(&col_in, &mut col_out, &cos_table_neon);
+        idct_1d(&col_in, &mut col_out, &COS_TABLE);
 
         for row in 0..8 {
             output[row * 8 + col] = col_out[row];
@@ -77,7 +54,7 @@ pub fn idct<const PRECISION: u8>(block: &mut [i32; 64]) {
 
 // 1D IDCT that is applied on rows and columns in the AAN algorithm.
 #[inline(always)]
-fn idct_1d(input: &[f32], output: &mut [f32], cos_table: &CosTableNeon) {
+fn idct_1d(input: &[f32], output: &mut [f32], cos_table: &[[f32; 8]; 8]) {
     unsafe {
         use std::arch::aarch64::*;
 
@@ -86,8 +63,8 @@ fn idct_1d(input: &[f32], output: &mut [f32], cos_table: &CosTableNeon) {
 
         for x in 0..8 {
             // Multiply-accumulate
-            let cos_lo = cos_table.lo[x];
-            let cos_hi = cos_table.hi[x];
+            let cos_lo = vld1q_f32(cos_table[x].as_ptr());
+            let cos_hi = vld1q_f32(cos_table[x].as_ptr().add(4));
 
             let mut sum = vmulq_f32(in_lo, cos_lo);
             sum = vfmaq_f32(sum, in_hi, cos_hi);

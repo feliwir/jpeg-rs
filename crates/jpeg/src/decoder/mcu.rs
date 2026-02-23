@@ -83,7 +83,8 @@ impl<R: std::io::Read> JpegDecoder<R> {
         let img_w = self.info.width;
         let img_h = self.info.height;
         let num_components = self.info.components;
-        let bytes_per_pixel = if num_components == 1 { 1 } else { 3 };
+        let mut bytes_per_pixel = if self.info.precision > 8 { 2 } else { 1 };
+        bytes_per_pixel *= num_components; // e.g. 3 for YCbCr → RGB
 
         // Snapshot per-component info (sampling factors, table IDs)
         let comp_params: Vec<ComponentParams> = self
