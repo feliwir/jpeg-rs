@@ -52,7 +52,7 @@ pub struct JpegDecoder<R> {
     // The reader from which the jpeg data will be read
     pub(crate) reader: R,
     // Delegate functions
-    pub(crate) idct_fn: fn(&mut [i32; 64]),
+    pub(crate) idct_fn: unsafe fn(&mut [i32; 64]),
     pub(crate) ycbcr_to_rgb_fn: fn(&[i16; 16], &[i16; 16], &[i16; 16], &mut [u8], &mut usize),
 }
 

@@ -1,5 +1,4 @@
 // ── Inverse DCT ─────────────────────────────────────────────────────────────
-
 use super::COS_TABLE_FIXED;
 
 /// Fixed-point scaling factor
@@ -12,7 +11,7 @@ const FIX_BITS: i32 = 14;
 /// while still being straightforward to understand.
 ///
 /// This version used fixed point arithmetic for better performance
-#[target_feature(enable = "neon")]
+#[target_feature(enable = "avx512f,avx512dq")]
 pub fn idct_fixed<const PRECISION: u8>(block: &mut [i32; 64]) {
     let mut tmp = [0i32; 64];
     let mut output = [0i32; 64];
@@ -26,7 +25,7 @@ pub fn idct_fixed<const PRECISION: u8>(block: &mut [i32; 64]) {
             &block[row * 8..row * 8 + 8],
             &mut tmp[row * 8..row * 8 + 8],
             &COS_TABLE_FIXED,
-        )
+        );
     }
 
     // ----- Column pass -----
@@ -51,44 +50,44 @@ pub fn idct_fixed<const PRECISION: u8>(block: &mut [i32; 64]) {
     }
 }
 
-// 1D IDCT that is applied on rows and columns in the AAN algorithm.
 #[inline(always)]
-fn idct_1d_fixed(input: &[i32], output: &mut [i32], table: &[[i32; 8]; 8]) {
+fn idct_1d_fixed(input: &[i32], output: &mut [i32], cos_table: &[[i32; 8]; 8]) {
     unsafe {
-        use std::arch::aarch64::*;
+        use std::arch::x86_64::*;
 
-        // Load input once
-        let in_lo = vld1q_s32(input.as_ptr());
-        let in_hi = vld1q_s32(input.as_ptr().add(4));
+        // Accumulate each output as i64
+        let mut sum = [_mm512_setzero_si512(); 1]; // We'll only need 1 register for 8 outputs
 
-        for x in 0..8 {
-            let row = table[x].as_ptr();
+        for u in 0..8 {
+            // Broadcast input[u] to 64-bit lanes
+            let in_val = _mm512_set1_epi64(input[u] as i64);
 
-            let w_lo = vld1q_s32(row);
-            let w_hi = vld1q_s32(row.add(4));
+            // Load cosine column: cos[0..7][u] -> i64
+            let cos_col: [i64; 8] = [
+                cos_table[0][u] as i64,
+                cos_table[1][u] as i64,
+                cos_table[2][u] as i64,
+                cos_table[3][u] as i64,
+                cos_table[4][u] as i64,
+                cos_table[5][u] as i64,
+                cos_table[6][u] as i64,
+                cos_table[7][u] as i64,
+            ];
+            let cos_vec = _mm512_loadu_si512(cos_col.as_ptr() as *const __m512i);
 
-            // Multiply low 4 → 64-bit lanes
-            let mul_lo = vmull_s32(vget_low_s32(in_lo), vget_low_s32(w_lo));
+            // Multiply: i64 lanes
+            let prod = _mm512_mullo_epi64(in_val, cos_vec);
 
-            let mul_hi = vmull_s32(vget_high_s32(in_lo), vget_high_s32(w_lo));
+            // Accumulate
+            sum[0] = _mm512_add_epi64(sum[0], prod);
+        }
 
-            let mul_lo2 = vmull_s32(vget_low_s32(in_hi), vget_low_s32(w_hi));
-
-            let mul_hi2 = vmull_s32(vget_high_s32(in_hi), vget_high_s32(w_hi));
-
-            // Sum 4 vectors of int64x2_t
-            let sum1 = vaddq_s64(mul_lo, mul_hi);
-            let sum2 = vaddq_s64(mul_lo2, mul_hi2);
-            let sum_vec = vaddq_s64(sum1, sum2);
-
-            // Horizontal add (2 lanes)
-            let sum = vgetq_lane_s64(sum_vec, 0) + vgetq_lane_s64(sum_vec, 1);
-
-            // Final scaling
-            let mut result = sum >> FIX_BITS;
-            result >>= 1;
-
-            output[x] = result as i32;
+        // Shift right by FIX_BITS + 1 (divide by 2)
+        let shift = FIX_BITS + 1;
+        let mut sum_shifted: [i64; 8] = [0; 8];
+        _mm512_storeu_si512(sum_shifted.as_mut_ptr() as *mut __m512i, sum[0]);
+        for i in 0..8 {
+            output[i] = (sum_shifted[i] >> shift) as i32;
         }
     }
 }

@@ -1,16 +1,23 @@
 use jpeg_common::options::SimdBackend;
-
+#[cfg(any(target_arch = "x86_64"))]
+pub mod avx;
 #[cfg(target_arch = "aarch64")]
 pub mod neon;
 pub mod scalar;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+pub mod sse;
 mod tables;
 
 fn select_idct_internal<const PRECISION: u8>(
     forced_backend: Option<SimdBackend>,
-) -> fn(&mut [i32; 64]) {
+) -> unsafe fn(&mut [i32; 64]) {
     if let Some(backend) = forced_backend {
         match backend {
-            SimdBackend::Scalar => return scalar::idct::<PRECISION>,
+            SimdBackend::Scalar => return scalar::idct_fixed::<PRECISION>,
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            SimdBackend::Avx2 => return avx::idct_fixed::<PRECISION>,
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            SimdBackend::Sse => return sse::idct_fixed::<PRECISION>,
             #[cfg(target_arch = "aarch64")]
             SimdBackend::Neon => return neon::idct::<PRECISION>,
             _ => return scalar::idct::<PRECISION>,
@@ -19,8 +26,18 @@ fn select_idct_internal<const PRECISION: u8>(
 
     // Check for NEON support at runtime, since some older ARMv8 CPUs may not have it.
     #[cfg(target_arch = "aarch64")]
-    if std::arch::is_aarch64_feature_detected!("neon") {
+    if SimdBackend::is_supported(SimdBackend::Neon) {
         return neon::idct::<PRECISION>;
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    if SimdBackend::is_supported(SimdBackend::Avx2) {
+        return avx::idct_fixed::<PRECISION>;
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    if SimdBackend::is_supported(SimdBackend::Sse) {
+        return sse::idct_fixed::<PRECISION>;
     }
 
     return scalar::idct::<PRECISION>;
@@ -29,7 +46,7 @@ fn select_idct_internal<const PRECISION: u8>(
 pub(crate) fn select_idct_fn(
     precision: u8,
     forced_backend: Option<SimdBackend>,
-) -> fn(&mut [i32; 64]) {
+) -> unsafe fn(&mut [i32; 64]) {
     // Check for NEON support at runtime, since some older ARMv8 CPUs may not have it.
     match precision {
         8 => select_idct_internal::<8>(forced_backend),

@@ -251,7 +251,7 @@ struct ComponentParams {
 /// order, each clamped to `[0, 255]`.
 fn decode_block<R: std::io::Read>(
     reader: &mut BitReader<R>,
-    idct_fn: fn(&mut [i32; 64]),
+    idct_fn: unsafe fn(&mut [i32; 64]),
     dc_table: &HuffmanTable,
     ac_table: &HuffmanTable,
     quant_table: &[i32; 64],
@@ -312,7 +312,7 @@ fn decode_block<R: std::io::Read>(
     }
 
     // ── Inverse DCT → pixel values ──────────────────────────────────
-    (idct_fn)(block);
+    unsafe { (idct_fn)(block) };
 
     Ok(())
 }

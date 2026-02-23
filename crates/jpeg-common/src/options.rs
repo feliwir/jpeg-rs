@@ -6,15 +6,19 @@ pub enum SimdBackend {
     #[allow(dead_code)]
     Neon,
     #[allow(dead_code)]
+    Sse,
+    #[allow(dead_code)]
     Avx2,
 }
 
 impl SimdBackend {
-    pub fn is_supported(&self) -> bool {
+    pub fn is_supported(self) -> bool {
         match self {
             SimdBackend::Scalar => true,
             #[cfg(target_arch = "aarch64")]
             SimdBackend::Neon => true,
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            SimdBackend::Sse => is_x86_feature_detected!("sse4.1"),
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             SimdBackend::Avx2 => is_x86_feature_detected!("avx2"),
             _ => false,
@@ -26,6 +30,10 @@ impl SimdBackend {
         #[cfg(target_arch = "aarch64")]
         {
             backends.push(SimdBackend::Neon);
+        }
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            backends.push(SimdBackend::Sse);
         }
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {

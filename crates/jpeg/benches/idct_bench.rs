@@ -23,6 +23,38 @@ fn bench_idct(c: &mut Criterion) {
         })
     });
 
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    group.bench_function("sse", |b| {
+        b.iter(|| {
+            let mut block_copy = block;
+            unsafe { idct::sse::idct::<8>(&mut block_copy) };
+        })
+    });
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    group.bench_function("sse_fixed", |b| {
+        b.iter(|| {
+            let mut block_copy = block;
+            unsafe { idct::sse::idct_fixed::<8>(&mut block_copy) };
+        })
+    });
+
+    #[cfg(any(target_arch = "x86_64"))]
+    group.bench_function("avx", |b| {
+        b.iter(|| {
+            let mut block_copy = block;
+            unsafe { idct::avx::idct::<8>(&mut block_copy) };
+        })
+    });
+
+    #[cfg(any(target_arch = "x86_64"))]
+    group.bench_function("avx_fixed", |b| {
+        b.iter(|| {
+            let mut block_copy = block;
+            unsafe { idct::avx::idct_fixed::<8>(&mut block_copy) };
+        })
+    });
+
     #[cfg(target_arch = "aarch64")]
     group.bench_function("neon", |b| {
         b.iter(|| {
