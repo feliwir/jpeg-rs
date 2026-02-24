@@ -10,7 +10,8 @@ use crate::{
     marker::{self, MARKER_PREFIX, Marker},
 };
 
-mod mcu;
+mod baseline;
+mod lossless;
 mod progressive;
 pub use progressive::ProgressiveState;
 
@@ -33,6 +34,7 @@ pub struct JpegDecoder<R> {
     headers_decoded: bool,
     // Header decoding properties
     pub(crate) is_progressive: bool,
+    pub(crate) is_lossless: bool,
     pub(crate) did_read_sof: bool,
     pub(crate) input_colorspace: ColorSpace,
     pub(crate) components: Vec<Component>,
@@ -82,6 +84,7 @@ impl<R: BufRead> JpegDecoder<R> {
             info: ImageInfo::default(),
             headers_decoded: false,
             is_progressive: false,
+            is_lossless: false,
             did_read_sof: false,
             input_colorspace: ColorSpace::Unknown,
             components: Vec::new(),
@@ -135,18 +138,19 @@ impl<R: BufRead> JpegDecoder<R> {
             let marker = self.read_marker()?;
             match marker {
                 // Start of Frame markers
-                Marker::SOF(0..=2) => {
-                    // choose marker
-                    if marker == Marker::SOF(0) || marker == Marker::SOF(1) {
-                    } else {
-                        self.is_progressive = true;
+                Marker::SOF(0..=3) => {
+                    match marker {
+                        Marker::SOF(2) => self.is_progressive = true,
+                        Marker::SOF(3) => self.is_lossless = true,
+                        _ => {}
                     }
 
                     log::trace!("Image encoding scheme =`{:?}`", marker);
                     marker::read_start_of_frame(self, marker)?;
 
-                    // Check if we need to switch the IDCT function based on the precision (if it's not 8 bits per sample, we need to use a different IDCT function)
-                    if self.info.precision != 8 {
+                    // Lossless mode has no DCT — skip IDCT selection.
+                    // For DCT modes, switch IDCT when precision != 8.
+                    if !self.is_lossless && self.info.precision != 8 {
                         self.idct_fn = idct::select_idct_fn(
                             self.info.precision,
                             self.options.forced_simd_backend(),
@@ -302,7 +306,9 @@ impl<R: BufRead> JpegDecoder<R> {
             )));
         }
 
-        if self.is_progressive {
+        if self.is_lossless {
+            self.decode_lossless(buffer)?;
+        } else if self.is_progressive {
             self.decode_progressive(buffer)?;
         } else {
             self.decode_mcu_ycbcr(buffer)?;

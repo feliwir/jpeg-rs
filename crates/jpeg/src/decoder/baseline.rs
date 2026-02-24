@@ -1,6 +1,6 @@
-//! MCU (Minimum Coded Unit) decoding for baseline JPEG.
+//! Baseline / extended sequential JPEG decoding.
 //!
-//! This module implements the core decoding pipeline:
+//! This module implements the core DCT-based decoding pipeline:
 //!
 //! 1. **Huffman decode** – read DC and AC coefficients from the compressed bitstream
 //! 2. **Dequantize**    – multiply coefficients by the quantization table

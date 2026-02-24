@@ -34,7 +34,7 @@ use crate::{
     marker::{self, Marker},
 };
 
-use super::{JpegDecoder, mcu::receive_extend};
+use super::{JpegDecoder, baseline::receive_extend};
 
 // ── Public state ────────────────────────────────────────────────────────────
 
