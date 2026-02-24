@@ -8,6 +8,14 @@ fn decode_baseline_12bit() {
     let pixel_data = extract_pixel_data_from_dicom(&data[..], 0);
 
     for backend in SimdBackend::iter() {
+        if !backend.is_supported() {
+            log::warn!(
+                "Skipping {:?} backend: not supported on this platform",
+                backend
+            );
+            continue;
+        }
+
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&pixel_data[..], options);
 
@@ -35,6 +43,14 @@ fn decode_baseline_10bit() {
     let pixel_data = extract_pixel_data_from_dicom(&data[..], 0);
 
     for backend in SimdBackend::iter() {
+        if !backend.is_supported() {
+            log::warn!(
+                "Skipping {:?} backend: not supported on this platform",
+                backend
+            );
+            continue;
+        }
+
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&pixel_data[..], options);
 

@@ -9,6 +9,8 @@ pub enum SimdBackend {
     Sse,
     #[allow(dead_code)]
     Avx2,
+    #[allow(dead_code)]
+    Avx512,
 }
 
 impl SimdBackend {
@@ -21,6 +23,10 @@ impl SimdBackend {
             SimdBackend::Sse => is_x86_feature_detected!("sse4.1"),
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             SimdBackend::Avx2 => is_x86_feature_detected!("avx2"),
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            SimdBackend::Avx512 => {
+                is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512dq")
+            }
             _ => false,
         }
     }
@@ -38,6 +44,10 @@ impl SimdBackend {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
             backends.push(SimdBackend::Avx2);
+        }
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            backends.push(SimdBackend::Avx512);
         }
         backends.into_iter()
     }

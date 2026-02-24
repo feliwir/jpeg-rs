@@ -7,6 +7,14 @@ fn decode_progressive_jpeg400() {
     let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg400jfif.prog.jpg");
 
     for backend in SimdBackend::iter() {
+        if !backend.is_supported() {
+            log::warn!(
+                "Skipping {:?} backend: not supported on this platform",
+                backend
+            );
+            continue;
+        }
+
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
         decoder.decode_headers().unwrap();
@@ -54,6 +62,14 @@ fn decode_progressive_jpeg420() {
     let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg420exif.prog.jpg");
 
     for backend in SimdBackend::iter() {
+        if !backend.is_supported() {
+            log::warn!(
+                "Skipping {:?} backend: not supported on this platform",
+                backend
+            );
+            continue;
+        }
+
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
         decoder.decode_headers().unwrap();
@@ -97,6 +113,14 @@ fn decode_progressive_jpeg420() {
 fn decode_progressive_jpeg422() {
     let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg422jfif.prog.jpg");
     for backend in SimdBackend::iter() {
+        if !backend.is_supported() {
+            log::warn!(
+                "Skipping {:?} backend: not supported on this platform",
+                backend
+            );
+            continue;
+        }
+
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
         decoder.decode_headers().unwrap();
@@ -140,6 +164,14 @@ fn decode_progressive_jpeg422() {
 fn decode_progressive_jpeg444() {
     let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg444.prog.jpg");
     for backend in SimdBackend::iter() {
+        if !backend.is_supported() {
+            log::warn!(
+                "Skipping {:?} backend: not supported on this platform",
+                backend
+            );
+            continue;
+        }
+
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
         decoder.decode_headers().unwrap();

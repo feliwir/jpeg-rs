@@ -36,7 +36,7 @@ fn bench_ycbcr_to_rgb(c: &mut Criterion) {
     #[cfg(any(target_arch = "x86_64"))]
     group.bench_function("avx", |b| {
         b.iter(|| unsafe {
-            color_convert::avx::ycbcr_to_rgb(&y, &cb, &cr, &mut rgb);
+            color_convert::avx2::ycbcr_to_rgb(&y, &cb, &cr, &mut rgb);
         })
     });
 

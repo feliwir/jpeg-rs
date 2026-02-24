@@ -1,5 +1,8 @@
 # jpeg-rs
 
+[![CI](https://github.com/feliwir/jpeg-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/feliwir/jpeg-rs/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/feliwir/jpeg-rs/branch/main/graph/badge.svg)](https://codecov.io/gh/feliwir/jpeg-rs)
+
 A pure-Rust workspace of JPEG family codecs, designed for **full specification coverage** across all JPEG transfer syntaxes used in medical imaging (DICOM).
 
 ## Motivation

@@ -4,7 +4,7 @@ pub mod scalar;
 pub mod sse;
 
 #[cfg(any(target_arch = "x86_64"))]
-pub mod avx;
+pub mod avx2;
 
 use jpeg_common::options::SimdBackend;
 
@@ -41,14 +41,14 @@ pub(crate) fn select_ycbcr_to_rgb_fn(forced_backend: Option<SimdBackend>) -> Ycb
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             SimdBackend::Sse => return sse::ycbcr_to_rgb,
             #[cfg(any(target_arch = "x86_64"))]
-            SimdBackend::Avx2 => return avx::ycbcr_to_rgb,
+            SimdBackend::Avx2 => return avx2::ycbcr_to_rgb,
             _ => return scalar::ycbcr_to_rgb,
         }
     }
 
     #[cfg(any(target_arch = "x86_64"))]
     if SimdBackend::is_supported(SimdBackend::Avx2) {
-        return avx::ycbcr_to_rgb;
+        return avx2::ycbcr_to_rgb;
     }
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]

@@ -43,7 +43,7 @@ fn bench_idct(c: &mut Criterion) {
     group.bench_function("avx", |b| {
         b.iter(|| {
             let mut block_copy = block;
-            unsafe { idct::avx::idct::<8>(&mut block_copy) };
+            unsafe { idct::avx512::idct::<8>(&mut block_copy) };
         })
     });
 
@@ -51,7 +51,7 @@ fn bench_idct(c: &mut Criterion) {
     group.bench_function("avx_fixed", |b| {
         b.iter(|| {
             let mut block_copy = block;
-            unsafe { idct::avx::idct_fixed::<8>(&mut block_copy) };
+            unsafe { idct::avx512::idct_fixed::<8>(&mut block_copy) };
         })
     });
 
