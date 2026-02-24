@@ -52,8 +52,8 @@ pub struct JpegDecoder<R> {
     // The reader from which the jpeg data will be read
     pub(crate) reader: R,
     // Delegate functions
-    pub(crate) idct_fn: unsafe fn(&mut [i32; 64]),
-    pub(crate) ycbcr_to_rgb_fn: fn(&[i16; 16], &[i16; 16], &[i16; 16], &mut [u8], &mut usize),
+    pub(crate) idct_fn: idct::IdctFn,
+    pub(crate) ycbcr_to_rgb_fn: color_convert::YcbcrToRgbFn,
 }
 
 impl<R: BufRead> JpegDecoder<R> {
@@ -85,7 +85,7 @@ impl<R: BufRead> JpegDecoder<R> {
             z_order: [0; MAX_COMPONENTS],
             restart_interval: 0,
             idct_fn: idct::select_idct_fn(8, options.forced_simd_backend()),
-            ycbcr_to_rgb_fn: color_convert::select_ycbcr_to_rgb_converter(),
+            ycbcr_to_rgb_fn: color_convert::select_ycbcr_to_rgb_fn(options.forced_simd_backend()),
         }
     }
 

@@ -232,6 +232,18 @@ pub(crate) fn read_quant_tables<R: std::io::BufRead>(
         }
 
         // We will un-zigzag the quantization tables here, so we can use them directly when decoding the image data
+        if precision == 0 {
+            // 8 bit quantization table
+            decoder.quantization_tables[table_id] =
+                Some(un_zig_zag(&buf[offset..offset + table_size]));
+        } else {
+            // 16 bit quantization table, we need to collect a uint16 array first and then un-zigzag it
+            let mut qt_16: [u16; 64] = [0; 64];
+            for i in 0..64 {
+                qt_16[i] = u16::from_be_bytes([buf[offset + 2 * i], buf[offset + 2 * i + 1]]);
+            }
+            decoder.quantization_tables[table_id] = Some(un_zig_zag(&qt_16));
+        }
         decoder.quantization_tables[table_id as usize] =
             Some(un_zig_zag(&buf[offset..offset + table_size]));
         offset += table_size;

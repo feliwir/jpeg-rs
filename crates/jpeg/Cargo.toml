@@ -15,3 +15,7 @@ testutil = { path = "../testutil" }
 [[bench]]
 name = "idct_bench"
 harness = false
+
+[[bench]]
+name = "color_convert_bench"
+harness = false

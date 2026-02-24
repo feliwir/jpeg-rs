@@ -1,4 +1,4 @@
-mod color_convert;
+pub mod color_convert;
 mod component;
 mod constants;
 pub mod decoder;

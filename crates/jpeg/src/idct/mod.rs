@@ -8,9 +8,18 @@ pub mod scalar;
 pub mod sse;
 mod tables;
 
-fn select_idct_internal<const PRECISION: u8>(
-    forced_backend: Option<SimdBackend>,
-) -> unsafe fn(&mut [i32; 64]) {
+/// Function pointer type for IDCT.
+///
+/// Converts an 8x8 block of frequency coefficients (in-place) to spatial domain pixel values,
+/// with the DC coefficient at index 0 and AC coefficients in zig-zag order.
+///
+/// # Safety
+/// SIMD variants require the corresponding CPU features to be available.
+pub type IdctFn = unsafe fn(&mut [i32; 64]);
+
+/// Select the best available IDCT function for the current
+/// platform, optionally forced to a specific SIMD backend.
+fn select_idct_internal<const PRECISION: u8>(forced_backend: Option<SimdBackend>) -> IdctFn {
     if let Some(backend) = forced_backend {
         match backend {
             SimdBackend::Scalar => return scalar::idct_fixed::<PRECISION>,

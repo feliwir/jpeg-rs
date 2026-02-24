@@ -8,7 +8,9 @@
 //! 4. **Inverse DCT**   – transform 8×8 frequency-domain block to spatial pixels
 //! 5. **Color convert** – convert YCbCr to RGB and write to the output buffer
 
-use crate::{constants::UN_ZIGZAG, error::DecodeError, huffman::HuffmanTable, io::BitReader};
+use crate::{
+    color_convert, constants::UN_ZIGZAG, error::DecodeError, huffman::HuffmanTable, io::BitReader,
+};
 
 use super::JpegDecoder;
 
@@ -83,8 +85,8 @@ impl<R: std::io::Read> JpegDecoder<R> {
         let img_w = self.info.width;
         let img_h = self.info.height;
         let num_components = self.info.components;
-        let mut bytes_per_pixel = if self.info.precision > 8 { 2 } else { 1 };
-        bytes_per_pixel *= num_components; // e.g. 3 for YCbCr → RGB
+        let bytes_per_component = if self.info.precision > 8 { 2 } else { 1 };
+        let bytes_per_pixel = bytes_per_component * num_components;
 
         // Snapshot per-component info (sampling factors, table IDs)
         let comp_params: Vec<ComponentParams> = self
@@ -114,6 +116,10 @@ impl<R: std::io::Read> JpegDecoder<R> {
             .iter()
             .map(|p| vec![[0i32; 64]; p.h_samples * p.v_samples])
             .collect();
+
+        // Sampling factors for color conversion
+        let h_samples: Vec<usize> = comp_params.iter().map(|p| p.h_samples).collect();
+        let v_samples: Vec<usize> = comp_params.iter().map(|p| p.v_samples).collect();
 
         // ── Main MCU loop ───────────────────────────────────────────────
         for mcu_row in 0..mcu_y {
@@ -155,74 +161,23 @@ impl<R: std::io::Read> JpegDecoder<R> {
                 }
 
                 // Step 2: Convert blocks → output pixels.
-                //
-                // Walk every pixel position in the MCU.  For subsampled
-                // components (e.g. 4:2:0 chroma) the `sample_component`
-                // helper maps full-resolution coordinates to the correct
-                // lower-resolution block and sample.
-                for py in 0..mcu_h {
-                    for px in 0..mcu_w {
-                        let abs_x = mcu_col * mcu_w + px;
-                        let abs_y = mcu_row * mcu_h + py;
-
-                        // Skip pixels that fall outside the actual image
-                        if abs_x >= img_w || abs_y >= img_h {
-                            continue;
-                        }
-
-                        let out_idx = (abs_y * img_w + abs_x) * bytes_per_pixel;
-
-                        if num_components == 1 {
-                            // Grayscale — just write the Y value
-                            output[out_idx] = sample_component(
-                                &mcu_blocks[0],
-                                &comp_params[0],
-                                h_max,
-                                v_max,
-                                px,
-                                py,
-                            ) as u8;
-                        } else {
-                            // YCbCr → RGB
-                            let y = sample_component(
-                                &mcu_blocks[0],
-                                &comp_params[0],
-                                h_max,
-                                v_max,
-                                px,
-                                py,
-                            ) as f64;
-                            let cb = sample_component(
-                                &mcu_blocks[1],
-                                &comp_params[1],
-                                h_max,
-                                v_max,
-                                px,
-                                py,
-                            ) as f64
-                                - 128.0;
-                            let cr = sample_component(
-                                &mcu_blocks[2],
-                                &comp_params[2],
-                                h_max,
-                                v_max,
-                                px,
-                                py,
-                            ) as f64
-                                - 128.0;
-
-                            let r = (y + 1.402 * cr).round().clamp(0.0, 255.0) as u8;
-                            let g = (y - 0.344136 * cb - 0.714136 * cr)
-                                .round()
-                                .clamp(0.0, 255.0) as u8;
-                            let b = (y + 1.772 * cb).round().clamp(0.0, 255.0) as u8;
-
-                            output[out_idx] = r;
-                            output[out_idx + 1] = g;
-                            output[out_idx + 2] = b;
-                        }
-                    }
-                }
+                color_convert::write_mcu_pixels(
+                    self.ycbcr_to_rgb_fn,
+                    &mcu_blocks,
+                    &h_samples,
+                    &v_samples,
+                    h_max,
+                    v_max,
+                    mcu_w,
+                    mcu_h,
+                    mcu_col,
+                    mcu_row,
+                    img_w,
+                    img_h,
+                    num_components,
+                    bytes_per_pixel,
+                    output,
+                );
 
                 mcu_count += 1;
             }
@@ -331,32 +286,4 @@ fn receive_extend(bits: u16, size: u8) -> i32 {
     } else {
         bits as i32
     }
-}
-
-// ── Component sampling ──────────────────────────────────────────────────────
-
-/// Look up a pixel value from the decoded blocks of one component, handling
-/// chroma subsampling via nearest-neighbor mapping.
-///
-/// `(px, py)` is the pixel position within the MCU in full-resolution
-/// coordinates.  For subsampled components (e.g. 4:2:0 chroma with
-/// `h_samples=1, v_samples=1` while `h_max=2, v_max=2`) the position is
-/// scaled down to find the correct lower-resolution block and sample.
-fn sample_component(
-    blocks: &[[i32; 64]],
-    params: &ComponentParams,
-    h_max: usize,
-    v_max: usize,
-    px: usize,
-    py: usize,
-) -> i32 {
-    // Map full-resolution pixel position to component coordinate space
-    let cx = px * params.h_samples / h_max;
-    let cy = py * params.v_samples / v_max;
-
-    // Which 8×8 block, and which sample within that block?
-    let block_idx = (cy / 8) * params.h_samples + (cx / 8);
-    let sample_idx = (cy % 8) * 8 + (cx % 8);
-
-    blocks[block_idx][sample_idx]
 }
