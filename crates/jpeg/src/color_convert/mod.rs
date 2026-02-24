@@ -10,6 +10,18 @@ use jpeg_common::options::SimdBackend;
 
 use crate::component::MAX_SAMPLING_FACTOR;
 
+// BT.601 full-range fixed-point coefficients (14-bit precision).
+//
+// Computed with MPFR for maximum accuracy.  Using i32 arithmetic
+// so the compiler can auto-vectorize when appropriate.
+pub(super) const Y_COEFF: i32 = 16384; //  1.0      × 2¹⁴
+pub(super) const CR_R_COEFF: i32 = 22970; //  1.402    × 2¹⁴
+pub(super) const CB_B_COEFF: i32 = 29032; //  1.772    × 2¹⁴
+pub(super) const CR_G_COEFF: i32 = -11700; // -0.714136 × 2¹⁴
+pub(super) const CB_G_COEFF: i32 = -5638; // -0.344136 × 2¹⁴
+pub(super) const PRECISION: i32 = 14;
+pub(super) const ROUND: i32 = (1 << (PRECISION - 1)) - 1;
+
 /// Function pointer type for batch YCbCr→RGB conversion.
 ///
 /// Converts `y.len()` pixels from YCbCr to interleaved RGB.

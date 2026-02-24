@@ -160,6 +160,16 @@ pub(crate) fn read_start_of_scan<R: std::io::BufRead>(
         component.ac_huffman_table_id = ac_table_id as usize;
         component.dc_huffman_table_id = dc_table_id as usize;
         decoder.z_order[i] = component_id as usize;
+        // Store the index of this component in decoder.components
+        let comp_idx = decoder
+            .components
+            .iter()
+            .position(|c| c.id == component_id)
+            .unwrap(); // safe: we just found it above
+        if i == 0 {
+            decoder.scan_component_indices.clear();
+        }
+        decoder.scan_component_indices.push(comp_idx);
 
         log::trace!(
             "Component {} uses DC huffman table {} and AC huffman table {}",
@@ -170,6 +180,22 @@ pub(crate) fn read_start_of_scan<R: std::io::BufRead>(
     }
 
     decoder.num_scans = ns;
+
+    // Parse spectral selection and successive approximation (3 trailing bytes)
+    let tail = 1 + 2 * ns;
+    decoder.scan_ss = buf[tail];
+    decoder.scan_se = buf[tail + 1];
+    let ah_al = buf[tail + 2];
+    decoder.scan_ah = ah_al >> 4;
+    decoder.scan_al = ah_al & 0x0F;
+
+    log::trace!(
+        "SOS scan params: Ss={}, Se={}, Ah={}, Al={}",
+        decoder.scan_ss,
+        decoder.scan_se,
+        decoder.scan_ah,
+        decoder.scan_al
+    );
 
     Ok(())
 }

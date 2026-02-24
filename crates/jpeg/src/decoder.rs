@@ -11,6 +11,8 @@ use crate::{
 };
 
 mod mcu;
+mod progressive;
+pub use progressive::ProgressiveState;
 
 #[derive(Default)]
 pub struct ImageInfo {
@@ -45,6 +47,17 @@ pub struct JpegDecoder<R> {
     pub(crate) mcu_y: usize,
     pub(crate) num_scans: usize,
     pub(crate) z_order: [usize; MAX_COMPONENTS],
+    // Progressive scan parameters (from SOS header)
+    /// Spectral selection start (Ss)
+    pub(crate) scan_ss: u8,
+    /// Spectral selection end (Se)
+    pub(crate) scan_se: u8,
+    /// Successive approximation high bit (Ah)
+    pub(crate) scan_ah: u8,
+    /// Successive approximation low bit (Al)
+    pub(crate) scan_al: u8,
+    /// Indices into `self.components` for the current scan's components
+    pub(crate) scan_component_indices: Vec<usize>,
     /// Restart interval (number of MCUs between RST markers). 0 = no restarts.
     pub(crate) restart_interval: usize,
     // The options for the decoder
@@ -83,6 +96,11 @@ impl<R: BufRead> JpegDecoder<R> {
             mcu_y: 0,
             num_scans: 0,
             z_order: [0; MAX_COMPONENTS],
+            scan_ss: 0,
+            scan_se: 0,
+            scan_ah: 0,
+            scan_al: 0,
+            scan_component_indices: Vec::new(),
             restart_interval: 0,
             idct_fn: idct::select_idct_fn(8, options.forced_simd_backend()),
             ycbcr_to_rgb_fn: color_convert::select_ycbcr_to_rgb_fn(options.forced_simd_backend()),
@@ -285,9 +303,7 @@ impl<R: BufRead> JpegDecoder<R> {
         }
 
         if self.is_progressive {
-            return Err(DecodeError::Unsupported(
-                "Progressive JPEG decoding is not supported yet".to_string(),
-            ));
+            self.decode_progressive(buffer)?;
         } else {
             self.decode_mcu_ycbcr(buffer)?;
         }

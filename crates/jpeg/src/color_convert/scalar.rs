@@ -1,14 +1,4 @@
-// BT.601 full-range fixed-point coefficients (14-bit precision).
-//
-// Computed with MPFR for maximum accuracy.  Using i32 arithmetic
-// so the compiler can auto-vectorize when appropriate.
-const Y_COEFF: i32 = 16384; //  1.0      × 2¹⁴
-const CR_R_COEFF: i32 = 22970; //  1.402    × 2¹⁴
-const CB_B_COEFF: i32 = 29032; //  1.772    × 2¹⁴
-const CR_G_COEFF: i32 = -11700; // -0.714136 × 2¹⁴
-const CB_G_COEFF: i32 = -5638; // -0.344136 × 2¹⁴
-const PRECISION: i32 = 14;
-const ROUND: i32 = (1 << (PRECISION - 1)) - 1;
+use super::{CB_B_COEFF, CB_G_COEFF, CR_G_COEFF, CR_R_COEFF, PRECISION, ROUND, Y_COEFF};
 
 /// Batch YCbCr→RGB conversion using fixed-point BT.601 full-range coefficients.
 ///

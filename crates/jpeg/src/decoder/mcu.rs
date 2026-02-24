@@ -43,7 +43,7 @@ impl<R: std::io::Read> JpegDecoder<R> {
     }
 
     /// Compute MCU grid dimensions from the component sampling factors.
-    fn setup_mcu_params(&mut self) {
+    pub(super) fn setup_mcu_params(&mut self) {
         // Find the maximum sampling factors across all components
         for comp in &self.components {
             self.h_max = self.h_max.max(comp.horizontal_sampling_factor);
@@ -88,17 +88,31 @@ impl<R: std::io::Read> JpegDecoder<R> {
         let bytes_per_component = if self.info.precision > 8 { 2 } else { 1 };
         let bytes_per_pixel = bytes_per_component * num_components;
 
-        // Snapshot per-component info (sampling factors, table IDs)
-        let comp_params: Vec<ComponentParams> = self
+        // Snapshot per-component info so we can borrow the reader separately
+        let h_samples: Vec<usize> = self
             .components
             .iter()
-            .map(|c| ComponentParams {
-                h_samples: c.horizontal_sampling_factor,
-                v_samples: c.vertical_sampling_factor,
-                qt_id: c.quantization_table_id,
-                dc_ht_id: c.dc_huffman_table_id,
-                ac_ht_id: c.ac_huffman_table_id,
-            })
+            .map(|c| c.horizontal_sampling_factor)
+            .collect();
+        let v_samples: Vec<usize> = self
+            .components
+            .iter()
+            .map(|c| c.vertical_sampling_factor)
+            .collect();
+        let qt_ids: Vec<usize> = self
+            .components
+            .iter()
+            .map(|c| c.quantization_table_id)
+            .collect();
+        let dc_ht_ids: Vec<usize> = self
+            .components
+            .iter()
+            .map(|c| c.dc_huffman_table_id)
+            .collect();
+        let ac_ht_ids: Vec<usize> = self
+            .components
+            .iter()
+            .map(|c| c.ac_huffman_table_id)
             .collect();
 
         // DC coefficients are differentially encoded; track previous value per component
@@ -112,14 +126,11 @@ impl<R: std::io::Read> JpegDecoder<R> {
         let mut reader = BitReader::new(&mut self.reader);
 
         // Temporary storage for the decoded 8×8 blocks within one MCU
-        let mut mcu_blocks: Vec<Vec<[i32; 64]>> = comp_params
+        let mut mcu_blocks: Vec<Vec<[i32; 64]>> = h_samples
             .iter()
-            .map(|p| vec![[0i32; 64]; p.h_samples * p.v_samples])
+            .zip(&v_samples)
+            .map(|(h, v)| vec![[0i32; 64]; h * v])
             .collect();
-
-        // Sampling factors for color conversion
-        let h_samples: Vec<usize> = comp_params.iter().map(|p| p.h_samples).collect();
-        let v_samples: Vec<usize> = comp_params.iter().map(|p| p.v_samples).collect();
 
         // ── Main MCU loop ───────────────────────────────────────────────
         for mcu_row in 0..mcu_y {
@@ -141,18 +152,18 @@ impl<R: std::io::Read> JpegDecoder<R> {
                 // In an interleaved scan the blocks appear in component order;
                 // within each component the blocks are arranged in raster order
                 // of the sampling grid (left→right, top→bottom).
-                for (ci, params) in comp_params.iter().enumerate() {
-                    for v in 0..params.v_samples {
-                        for h in 0..params.h_samples {
-                            let block = &mut mcu_blocks[ci][v * params.h_samples + h];
+                for ci in 0..num_components {
+                    for v in 0..v_samples[ci] {
+                        for h in 0..h_samples[ci] {
+                            let block = &mut mcu_blocks[ci][v * h_samples[ci] + h];
                             *block = [0i32; 64];
 
                             decode_block(
                                 &mut reader,
                                 self.idct_fn,
-                                self.dc_huffman_tables[params.dc_ht_id].as_ref().unwrap(),
-                                self.ac_huffman_tables[params.ac_ht_id].as_ref().unwrap(),
-                                self.quantization_tables[params.qt_id].as_ref().unwrap(),
+                                self.dc_huffman_tables[dc_ht_ids[ci]].as_ref().unwrap(),
+                                self.ac_huffman_tables[ac_ht_ids[ci]].as_ref().unwrap(),
+                                self.quantization_tables[qt_ids[ci]].as_ref().unwrap(),
                                 &mut prev_dc[ci],
                                 block,
                             )?;
@@ -185,18 +196,6 @@ impl<R: std::io::Read> JpegDecoder<R> {
 
         Ok(())
     }
-}
-
-// ── Helper types ────────────────────────────────────────────────────────────
-
-/// Per-component parameters snapshotted before the decode loop so we don't
-/// need to borrow `self.components` while the reader is also borrowed.
-struct ComponentParams {
-    h_samples: usize,
-    v_samples: usize,
-    qt_id: usize,
-    dc_ht_id: usize,
-    ac_ht_id: usize,
 }
 
 // ── Block-level decoding ────────────────────────────────────────────────────
@@ -279,7 +278,7 @@ fn decode_block<R: std::io::Read>(
 /// negative.  For example with `size = 3`:
 ///   - bits `100`–`111` (4–7)  →  4–7  (positive)
 ///   - bits `000`–`011` (0–3)  → −7–−4 (negative)
-fn receive_extend(bits: u16, size: u8) -> i32 {
+pub(super) fn receive_extend(bits: u16, size: u8) -> i32 {
     let vt = 1 << (size as i32 - 1);
     if (bits as i32) < vt {
         bits as i32 + (-1 << size as i32) + 1

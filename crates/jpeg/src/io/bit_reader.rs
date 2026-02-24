@@ -91,6 +91,15 @@ impl<R: std::io::Read> BitReader<R> {
         }
         Ok(buf[1])
     }
+
+    /// Discard any buffered bits, returning to byte-aligned state.
+    ///
+    /// Call this after finishing a progressive scan's entropy data
+    /// so that the underlying reader is positioned at the next marker.
+    pub fn discard_buffered_bits(&mut self) {
+        self.bits_left = 0;
+        self.bit_buffer = 0;
+    }
 }
 
 #[cfg(test)]

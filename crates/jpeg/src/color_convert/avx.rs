@@ -1,12 +1,6 @@
 use std::arch::x86_64::*;
 
-// BT.601 full-range fixed-point coefficients (14-bit precision).
-const Y_COEFF: i32 = 16384;
-const CR_R_COEFF: i32 = 22970;
-const CB_B_COEFF: i32 = 29032;
-const CR_G_COEFF: i32 = -11700;
-const CB_G_COEFF: i32 = -5638;
-const ROUND: i32 = (1 << 13) - 1;
+use super::{CB_B_COEFF, CB_G_COEFF, CR_G_COEFF, CR_R_COEFF, ROUND, Y_COEFF};
 
 /// Batch YCbCr→RGB conversion using AVX2 intrinsics.
 ///

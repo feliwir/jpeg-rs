@@ -3,100 +3,178 @@ use jpeg_common::options::{DecoderOptions, SimdBackend};
 use testutil::{save_pixels_as_pgm, save_pixels_as_ppm};
 
 #[test_log::test]
-#[ignore = "Progressive decoding is currently not supported"]
-fn decode_progressive_jpeg400_scalar() {
+fn decode_progressive_jpeg400() {
     let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg400jfif.prog.jpg");
 
     for backend in SimdBackend::iter() {
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
-        let pixels = decoder.decode().unwrap();
-        let info = decoder.info().unwrap();
-        assert_eq!(info.width, 600);
-        assert_eq!(info.height, 800);
-        assert_eq!(info.precision, 8);
-        assert_eq!(info.components, 1);
+        decoder.decode_headers().unwrap();
 
-        // Write out the decoded pixels to a PGM file for visual verification
+        let (width, height, precision, components) = {
+            let info = decoder.info().unwrap();
+            (info.width, info.height, info.precision, info.components)
+        };
+        assert_eq!(width, 600);
+        assert_eq!(height, 800);
+        assert_eq!(precision, 8);
+        assert_eq!(components, 1);
+
+        let mut pixels = vec![0u8; decoder.required_buffer_size().unwrap()];
+        let mut state = decoder.start_progressive().unwrap();
+
+        while decoder.decode_next_scan(&mut state).unwrap() {
+            decoder.reconstruct(&state, &mut pixels).unwrap();
+            save_pixels_as_pgm(
+                &format!(
+                    "jpeg400jfif.prog_{:?}_scan{:02}.pgm",
+                    backend,
+                    state.scan_count()
+                ),
+                &pixels,
+                width,
+                height,
+                precision as usize,
+            );
+        }
+        // Final reconstruction
+        decoder.reconstruct(&state, &mut pixels).unwrap();
         save_pixels_as_pgm(
             &format!("jpeg400jfif.prog_{:?}.pgm", backend),
             &pixels,
-            info.width,
-            info.height,
-            info.precision as usize,
+            width,
+            height,
+            precision as usize,
         );
     }
 }
 
 #[test_log::test]
-#[ignore = "Progressive decoding is currently not supported"]
-fn decode_progressive_jpeg420_scalar() {
+fn decode_progressive_jpeg420() {
     let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg420exif.prog.jpg");
 
     for backend in SimdBackend::iter() {
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
-        let pixels = decoder.decode().unwrap();
-        let info = decoder.info().unwrap();
-        assert_eq!(info.width, 2048);
-        assert_eq!(info.height, 1536);
-        assert_eq!(info.precision, 8);
-        assert_eq!(info.components, 3);
+        decoder.decode_headers().unwrap();
 
-        // Write out the decoded pixels to a PPM file for visual verification
+        let (width, height, precision, components) = {
+            let info = decoder.info().unwrap();
+            (info.width, info.height, info.precision, info.components)
+        };
+        assert_eq!(width, 2048);
+        assert_eq!(height, 1536);
+        assert_eq!(precision, 8);
+        assert_eq!(components, 3);
+
+        let mut pixels = vec![0u8; decoder.required_buffer_size().unwrap()];
+        let mut state = decoder.start_progressive().unwrap();
+
+        while decoder.decode_next_scan(&mut state).unwrap() {
+            decoder.reconstruct(&state, &mut pixels).unwrap();
+            save_pixels_as_ppm(
+                &format!(
+                    "jpeg420exif.prog_{:?}_scan{:02}.ppm",
+                    backend,
+                    state.scan_count()
+                ),
+                &pixels,
+                width,
+                height,
+            );
+        }
+        decoder.reconstruct(&state, &mut pixels).unwrap();
         save_pixels_as_ppm(
             &format!("jpeg420exif.prog_{:?}.ppm", backend),
             &pixels,
-            info.width,
-            info.height,
+            width,
+            height,
         );
     }
 }
 
 #[test_log::test]
-#[ignore = "Progressive decoding is currently not supported"]
-fn decode_progressive_jpeg422_scalar() {
+fn decode_progressive_jpeg422() {
     let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg422jfif.prog.jpg");
     for backend in SimdBackend::iter() {
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
-        let pixels = decoder.decode().unwrap();
-        let info = decoder.info().unwrap();
-        assert_eq!(info.width, 2048);
-        assert_eq!(info.height, 1536);
-        assert_eq!(info.precision, 8);
-        assert_eq!(info.components, 3);
+        decoder.decode_headers().unwrap();
 
-        // Write out the decoded pixels to a PPM file for visual verification
+        let (width, height, precision, components) = {
+            let info = decoder.info().unwrap();
+            (info.width, info.height, info.precision, info.components)
+        };
+        assert_eq!(width, 2048);
+        assert_eq!(height, 1536);
+        assert_eq!(precision, 8);
+        assert_eq!(components, 3);
+
+        let mut pixels = vec![0u8; decoder.required_buffer_size().unwrap()];
+        let mut state = decoder.start_progressive().unwrap();
+
+        while decoder.decode_next_scan(&mut state).unwrap() {
+            decoder.reconstruct(&state, &mut pixels).unwrap();
+            save_pixels_as_ppm(
+                &format!(
+                    "jpeg422jfif.prog_{:?}_scan{:02}.ppm",
+                    backend,
+                    state.scan_count()
+                ),
+                &pixels,
+                width,
+                height,
+            );
+        }
+        decoder.reconstruct(&state, &mut pixels).unwrap();
         save_pixels_as_ppm(
             &format!("jpeg422jfif.prog_{:?}.ppm", backend),
             &pixels,
-            info.width,
-            info.height,
+            width,
+            height,
         );
     }
 }
 
 #[test_log::test]
-#[ignore = "Progressive decoding is currently not supported"]
-fn decode_progressive_jpeg444_scalar() {
+fn decode_progressive_jpeg444() {
     let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg444.prog.jpg");
     for backend in SimdBackend::iter() {
         let options = DecoderOptions::default().set_forced_simd_backend(Some(backend));
         let mut decoder = JpegDecoder::new_with_options(&data[..], options);
-        let pixels = decoder.decode().unwrap();
-        let info = decoder.info().unwrap();
-        assert_eq!(info.width, 256);
-        assert_eq!(info.height, 256);
-        assert_eq!(info.precision, 8);
-        assert_eq!(info.components, 3);
+        decoder.decode_headers().unwrap();
 
-        // Write out the decoded pixels to a PPM file for visual verification
+        let (width, height, precision, components) = {
+            let info = decoder.info().unwrap();
+            (info.width, info.height, info.precision, info.components)
+        };
+        assert_eq!(width, 256);
+        assert_eq!(height, 256);
+        assert_eq!(precision, 8);
+        assert_eq!(components, 3);
+
+        let mut pixels = vec![0u8; decoder.required_buffer_size().unwrap()];
+        let mut state = decoder.start_progressive().unwrap();
+
+        while decoder.decode_next_scan(&mut state).unwrap() {
+            decoder.reconstruct(&state, &mut pixels).unwrap();
+            save_pixels_as_ppm(
+                &format!(
+                    "jpeg444.prog_{:?}_scan{:02}.ppm",
+                    backend,
+                    state.scan_count()
+                ),
+                &pixels,
+                width,
+                height,
+            );
+        }
+        decoder.reconstruct(&state, &mut pixels).unwrap();
         save_pixels_as_ppm(
             &format!("jpeg444.prog_{:?}.ppm", backend),
             &pixels,
-            info.width,
-            info.height,
+            width,
+            height,
         );
     }
 }

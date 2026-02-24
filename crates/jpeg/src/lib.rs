@@ -9,4 +9,5 @@ mod io;
 mod marker;
 
 pub use decoder::JpegDecoder;
+pub use decoder::ProgressiveState;
 pub use jpeg_common;
