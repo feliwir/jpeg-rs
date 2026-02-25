@@ -64,7 +64,7 @@ pub fn extract_pixel_data_from_dicom(dicom_data: &[u8], frame_number: usize) -> 
         DicomValue::Primitive(v) => {
             // grab the intended slice based on image properties
 
-            let get_int_property = |tag, name| {
+            let get_int_property = |tag, _name| {
                 dcm.get(tag)
                     .expect("Missing property")
                     .to_int::<usize>()

@@ -10,7 +10,7 @@ fn decode_lossless_16bit_ct1() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -28,7 +28,7 @@ fn decode_lossless_16bit_ct1() {
 
         // Write out the decoded pixels to a PGM file for visual verification
         save_pixels_as_pgm(
-            &format!("ct1_jpll_{:?}.pgm", backend),
+            &format!("out/ct1_jpll_{}.pgm", backend),
             &pixels,
             info.width,
             info.height,
@@ -46,7 +46,7 @@ fn decode_lossless_16bit_mr1() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -64,7 +64,7 @@ fn decode_lossless_16bit_mr1() {
 
         // Write out the decoded pixels to a PGM file for visual verification
         save_pixels_as_pgm(
-            &format!("mr1_jpll_{:?}.pgm", backend),
+            &format!("out/mr1_jpll_{}.pgm", backend),
             &pixels,
             info.width,
             info.height,
@@ -81,7 +81,7 @@ fn decode_lossless_12bit() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -99,7 +99,7 @@ fn decode_lossless_12bit() {
 
         // Write out the decoded pixels to a PGM file for visual verification
         save_pixels_as_pgm(
-            &format!("mr2_jpll_{:?}.pgm", backend),
+            &format!("out/mr2_jpll_{}.pgm", backend),
             &pixels,
             info.width,
             info.height,

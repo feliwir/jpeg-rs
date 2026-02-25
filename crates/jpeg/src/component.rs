@@ -3,7 +3,7 @@ use crate::error::DecodeError;
 pub(crate) const MAX_SAMPLING_FACTOR: usize = 4;
 pub(crate) const MAX_COMPONENTS: usize = 4;
 
-pub(super) struct Component {
+pub(crate) struct Component {
     /// The component id (1-based)
     pub id: u8,
     /// The horizontal sampling factor
@@ -19,6 +19,25 @@ pub(super) struct Component {
 }
 
 impl Component {
+    /// Create a new component with the given parameters.
+    pub fn new(
+        id: u8,
+        horizontal_sampling_factor: usize,
+        vertical_sampling_factor: usize,
+        quantization_table_id: usize,
+        dc_huffman_table_id: usize,
+        ac_huffman_table_id: usize,
+    ) -> Self {
+        Component {
+            id,
+            horizontal_sampling_factor,
+            vertical_sampling_factor,
+            quantization_table_id,
+            dc_huffman_table_id,
+            ac_huffman_table_id,
+        }
+    }
+
     pub fn from_bytes(a: [u8; 3]) -> Result<Self, DecodeError> {
         let id = a[0];
         if id > 3 {

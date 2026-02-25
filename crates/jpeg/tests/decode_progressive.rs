@@ -9,7 +9,7 @@ fn decode_progressive_jpeg400() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -35,7 +35,7 @@ fn decode_progressive_jpeg400() {
             decoder.reconstruct(&state, &mut pixels).unwrap();
             save_pixels_as_pgm(
                 &format!(
-                    "jpeg400jfif.prog_{:?}_scan{:02}.pgm",
+                    "out/jpeg400jfif.prog_{}_scan{:02}.pgm",
                     backend,
                     state.scan_count()
                 ),
@@ -48,7 +48,7 @@ fn decode_progressive_jpeg400() {
         // Final reconstruction
         decoder.reconstruct(&state, &mut pixels).unwrap();
         save_pixels_as_pgm(
-            &format!("jpeg400jfif.prog_{:?}.pgm", backend),
+            &format!("out/jpeg400jfif.prog_{}.pgm", backend),
             &pixels,
             width,
             height,
@@ -64,7 +64,7 @@ fn decode_progressive_jpeg420() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -90,7 +90,7 @@ fn decode_progressive_jpeg420() {
             decoder.reconstruct(&state, &mut pixels).unwrap();
             save_pixels_as_ppm(
                 &format!(
-                    "jpeg420exif.prog_{:?}_scan{:02}.ppm",
+                    "out/jpeg420exif.prog_{}_scan{:02}.ppm",
                     backend,
                     state.scan_count()
                 ),
@@ -101,7 +101,7 @@ fn decode_progressive_jpeg420() {
         }
         decoder.reconstruct(&state, &mut pixels).unwrap();
         save_pixels_as_ppm(
-            &format!("jpeg420exif.prog_{:?}.ppm", backend),
+            &format!("out/jpeg420exif.prog_{}.ppm", backend),
             &pixels,
             width,
             height,
@@ -115,7 +115,7 @@ fn decode_progressive_jpeg422() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -141,7 +141,7 @@ fn decode_progressive_jpeg422() {
             decoder.reconstruct(&state, &mut pixels).unwrap();
             save_pixels_as_ppm(
                 &format!(
-                    "jpeg422jfif.prog_{:?}_scan{:02}.ppm",
+                    "out/jpeg422jfif.prog_{}_scan{:02}.ppm",
                     backend,
                     state.scan_count()
                 ),
@@ -152,7 +152,7 @@ fn decode_progressive_jpeg422() {
         }
         decoder.reconstruct(&state, &mut pixels).unwrap();
         save_pixels_as_ppm(
-            &format!("jpeg422jfif.prog_{:?}.ppm", backend),
+            &format!("out/jpeg422jfif.prog_{}.ppm", backend),
             &pixels,
             width,
             height,
@@ -166,7 +166,7 @@ fn decode_progressive_jpeg444() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -192,7 +192,7 @@ fn decode_progressive_jpeg444() {
             decoder.reconstruct(&state, &mut pixels).unwrap();
             save_pixels_as_ppm(
                 &format!(
-                    "jpeg444.prog_{:?}_scan{:02}.ppm",
+                    "out/jpeg444.prog_{}_scan{:02}.ppm",
                     backend,
                     state.scan_count()
                 ),
@@ -203,7 +203,7 @@ fn decode_progressive_jpeg444() {
         }
         decoder.reconstruct(&state, &mut pixels).unwrap();
         save_pixels_as_ppm(
-            &format!("jpeg444.prog_{:?}.ppm", backend),
+            &format!("out/jpeg444.prog_{}.ppm", backend),
             &pixels,
             width,
             height,

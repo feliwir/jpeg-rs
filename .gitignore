@@ -1,5 +1,7 @@
 target/
+out/
 .DS_Store
 *.pgm
 *.ppm
+*.jpg
 lcov.info

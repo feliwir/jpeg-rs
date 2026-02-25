@@ -15,7 +15,7 @@ Most existing JPEG libraries target the web: they handle baseline 8-bit 4:2:0 an
 
 | Crate | Description | Decoder | Encoder |
 |-------|-------------|---------|---------|
-| `jpeg` | Baseline, extended sequential & progressive DCT (ITU-T T.81) | Active | Planned |
+| `jpeg` | Baseline, extended sequential & progressive DCT (ITU-T T.81), lossless | Active | Active |
 | `jpeg-ls` | JPEG-LS lossless & near-lossless (ITU-T T.87) | Planned | Planned |
 | `jpeg-2000` | JPEG 2000 (ITU-T T.800) | Planned | Planned |
 | `jpeg-xl` | JPEG XL (ISO 18181) | Planned | Planned |

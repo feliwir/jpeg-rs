@@ -1,8 +1,10 @@
 pub const MARKER_PREFIX: u8 = 0xFF;
 
 mod read;
+mod write;
 
 pub(crate) use read::*;
+pub(crate) use write::*;
 
 // Table B.1
 #[derive(Clone, Copy, Debug, PartialEq)]

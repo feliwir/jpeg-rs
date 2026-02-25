@@ -10,7 +10,7 @@ fn decode_extended_12bit() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -28,7 +28,7 @@ fn decode_extended_12bit() {
 
         // Write out the decoded pixels to a PGM file for visual verification
         save_pixels_as_pgm(
-            &format!("mr1_jply_{:?}.pgm", backend),
+            &format!("out/mr1_jply_{}.pgm", backend),
             &pixels,
             info.width,
             info.height,
@@ -45,7 +45,7 @@ fn decode_baseline_10bit() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -64,7 +64,7 @@ fn decode_baseline_10bit() {
 
         // Write out the decoded pixels to a PGM file for visual verification
         save_pixels_as_pgm(
-            &format!("rg3_jply_{:?}.pgm", backend),
+            &format!("out/rg3_jply_{}.pgm", backend),
             &pixels,
             info.width,
             info.height,

@@ -9,7 +9,7 @@ fn decode_baseline_jpeg400() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -26,7 +26,7 @@ fn decode_baseline_jpeg400() {
 
         // Write out the decoded pixels to a PGM file for visual verification
         save_pixels_as_pgm(
-            &format!("jpeg400jfif_{:?}.pgm", backend),
+            &format!("out/jpeg400jfif_{}.pgm", backend),
             &pixels,
             info.width,
             info.height,
@@ -42,7 +42,7 @@ fn decode_baseline_jpeg420() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -59,7 +59,7 @@ fn decode_baseline_jpeg420() {
 
         // Write out the decoded pixels to a PPM file for visual verification
         save_pixels_as_ppm(
-            &format!("jpeg420exif_{:?}.ppm", backend),
+            &format!("out/jpeg420exif_{}.ppm", backend),
             &pixels,
             info.width,
             info.height,
@@ -73,7 +73,7 @@ fn decode_baseline_jpeg422() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -90,7 +90,7 @@ fn decode_baseline_jpeg422() {
 
         // Write out the decoded pixels to a PPM file for visual verification
         save_pixels_as_ppm(
-            &format!("jpeg422jfif_{:?}.ppm", backend),
+            &format!("out/jpeg422jfif_{}.ppm", backend),
             &pixels,
             info.width,
             info.height,
@@ -104,7 +104,7 @@ fn decode_baseline_jpeg444() {
     for backend in SimdBackend::iter() {
         if !backend.is_supported() {
             log::warn!(
-                "Skipping {:?} backend: not supported on this platform",
+                "Skipping {} backend: not supported on this platform",
                 backend
             );
             continue;
@@ -121,7 +121,7 @@ fn decode_baseline_jpeg444() {
 
         // Write out the decoded pixels to a PPM file for visual verification
         save_pixels_as_ppm(
-            &format!("jpeg444_{:?}.ppm", backend),
+            &format!("out/jpeg444_{}.ppm", backend),
             &pixels,
             info.width,
             info.height,

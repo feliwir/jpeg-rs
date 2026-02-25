@@ -1,3 +1,5 @@
+use std::io::Read;
+
 pub fn save_pixels_as_pgm(
     filename: &str,
     pixels: &[u8],
@@ -24,4 +26,31 @@ pub fn save_pixels_as_pgm(
     } else {
         output.write_all(pixels).unwrap();
     }
+}
+
+pub fn load_pixels_from_pgm(data: &[u8]) -> (Vec<u8>, usize, usize, usize) {
+    use std::io::BufRead;
+    let mut reader = std::io::Cursor::new(data);
+    let mut lines = reader.by_ref().lines();
+
+    // Read magic number
+    let magic = lines.next().unwrap().unwrap();
+    assert_eq!(magic, "P5");
+
+    // Read width, height
+    let dims_line = lines.next().unwrap().unwrap();
+    let mut dims_iter = dims_line.split_whitespace();
+    let width: usize = dims_iter.next().unwrap().parse().unwrap();
+    let height: usize = dims_iter.next().unwrap().parse().unwrap();
+
+    // Read maxval
+    let maxval_line = lines.next().unwrap().unwrap();
+    let maxval: usize = maxval_line.parse().unwrap();
+    assert!(maxval <= 65535);
+
+    // Read pixel data
+    let mut pixels = Vec::new();
+    reader.read_to_end(&mut pixels).unwrap();
+
+    (pixels, width, height, maxval)
 }

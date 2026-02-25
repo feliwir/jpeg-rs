@@ -36,3 +36,37 @@ impl From<std::io::Error> for DecodeError {
         DecodeError::IoErrors(err)
     }
 }
+
+#[derive(Debug)]
+pub enum EncodeError {
+    /// Invalid dimensions
+    InvalidDimensions(String),
+    /// Invalid or unsupported color space
+    UnsupportedColorSpace,
+    /// Invalid options
+    InvalidOptions(String),
+    /// Unsupported feature
+    Unsupported(String),
+    /// IO errors
+    IoErrors(std::io::Error),
+}
+
+impl From<std::io::Error> for EncodeError {
+    fn from(err: std::io::Error) -> Self {
+        EncodeError::IoErrors(err)
+    }
+}
+
+impl std::fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EncodeError::InvalidDimensions(msg) => write!(f, "Invalid dimensions: {}", msg),
+            EncodeError::UnsupportedColorSpace => write!(f, "Unsupported color space"),
+            EncodeError::InvalidOptions(msg) => write!(f, "Invalid options: {}", msg),
+            EncodeError::Unsupported(msg) => write!(f, "Unsupported: {}", msg),
+            EncodeError::IoErrors(e) => write!(f, "IO error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for EncodeError {}

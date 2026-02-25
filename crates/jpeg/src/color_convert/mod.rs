@@ -14,13 +14,26 @@ use crate::component::MAX_SAMPLING_FACTOR;
 //
 // Computed with MPFR for maximum accuracy.  Using i32 arithmetic
 // so the compiler can auto-vectorize when appropriate.
+pub(super) const PRECISION: i32 = 14;
+pub(super) const ROUND: i32 = (1 << (PRECISION - 1)) - 1;
+
+// ── Inverse (YCbCr → RGB) ──────────────────────────────────────────────────
 pub(super) const Y_COEFF: i32 = 16384; //  1.0      × 2¹⁴
 pub(super) const CR_R_COEFF: i32 = 22970; //  1.402    × 2¹⁴
 pub(super) const CB_B_COEFF: i32 = 29032; //  1.772    × 2¹⁴
 pub(super) const CR_G_COEFF: i32 = -11700; // -0.714136 × 2¹⁴
 pub(super) const CB_G_COEFF: i32 = -5638; // -0.344136 × 2¹⁴
-pub(super) const PRECISION: i32 = 14;
-pub(super) const ROUND: i32 = (1 << (PRECISION - 1)) - 1;
+
+// ── Forward (RGB → YCbCr) ──────────────────────────────────────────────────
+pub(super) const FWD_Y_R: i32 = 4899; //  0.299    × 2¹⁴
+pub(super) const FWD_Y_G: i32 = 9617; //  0.587    × 2¹⁴
+pub(super) const FWD_Y_B: i32 = 1868; //  0.114    × 2¹⁴
+pub(super) const FWD_CB_R: i32 = -2764; // -0.168736 × 2¹⁴
+pub(super) const FWD_CB_G: i32 = -5428; // -0.331264 × 2¹⁴
+pub(super) const FWD_CB_B: i32 = 8192; //  0.5      × 2¹⁴
+pub(super) const FWD_CR_R: i32 = 8192; //  0.5      × 2¹⁴
+pub(super) const FWD_CR_G: i32 = -6860; // -0.418688 × 2¹⁴
+pub(super) const FWD_CR_B: i32 = -1332; // -0.081312 × 2¹⁴
 
 /// Function pointer type for batch YCbCr→RGB conversion.
 ///

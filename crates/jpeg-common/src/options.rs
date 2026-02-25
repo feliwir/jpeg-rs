@@ -53,6 +53,18 @@ impl SimdBackend {
     }
 }
 
+impl std::fmt::Display for SimdBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SimdBackend::Scalar => write!(f, "scalar"),
+            SimdBackend::Neon => write!(f, "neon"),
+            SimdBackend::Sse => write!(f, "sse"),
+            SimdBackend::Avx2 => write!(f, "avx2"),
+            SimdBackend::Avx512 => write!(f, "avx512"),
+        }
+    }
+}
+
 /// Decoder options
 ///
 /// Not all options are respected by all decoders
@@ -159,6 +171,200 @@ impl DecoderOptions {
     /// # Arguments
     /// * `forced_simd_backend` - The SIMD backend to use for decoding.
     /// If None, the decoder will choose the best available SIMD backend for the current platform.
+    pub fn set_forced_simd_backend(mut self, forced_simd_backend: Option<SimdBackend>) -> Self {
+        self.forced_simd_backend = forced_simd_backend;
+        self
+    }
+}
+
+/// Encoder options
+///
+/// Not all options are respected by all encoders
+#[derive(Debug, Copy, Clone)]
+pub struct EncoderOptions {
+    /// Quality for lossy encoders
+    ///
+    /// - Default value: 85
+    /// - Respected by: `jpeg`
+    quality: u8,
+
+    /// Width of the image
+    ///
+    /// - Default value: 0 (must be set by the user for encoders that require it)
+    /// - Respected by: `jpeg`
+    width: usize,
+
+    /// Height of the image
+    ///
+    /// - Default value: 0 (must be set by the user for encoders that require it)
+    /// - Respected by: `jpeg`
+    height: usize,
+
+    /// Colorspace of the input image
+    ///
+    /// - Default value: `RGB`
+    /// - Respected by: `jpeg`
+    colorspace: ColorSpace,
+
+    /// Chroma subsampling for the encoder
+    ///
+    /// - Default value: `YCbCr 4:2:0`
+    /// - Respected by: `jpeg`
+    chroma_subsampling: (u8, u8),
+
+    /// Progressive encoding for the encoder
+    ///
+    /// - Default value: `false`
+    /// - Respected by: `jpeg`
+    progressive: bool,
+
+    /// Lossless encoding for the encoder
+    ///
+    /// - Default value: `false`
+    /// - Respected by: `jpeg`
+    lossless: bool,
+
+    /// SIMD backend to use for encoding
+    ///
+    /// - Default value: `None`
+    /// - Respected by: `jpeg`
+    forced_simd_backend: Option<SimdBackend>,
+}
+
+impl Default for EncoderOptions {
+    fn default() -> Self {
+        Self {
+            quality: 85,
+            width: 0,
+            height: 0,
+            colorspace: ColorSpace::RGB,
+            chroma_subsampling: (4, 2),
+            progressive: false,
+            lossless: false,
+            forced_simd_backend: None,
+        }
+    }
+}
+
+impl EncoderOptions {
+    pub fn new(width: usize, height: usize, colorspace: ColorSpace) -> Self {
+        Self {
+            width,
+            height,
+            colorspace,
+            ..Self::default()
+        }
+    }
+
+    /// Get the quality for lossy encoders
+    pub fn quality(&self) -> u8 {
+        self.quality
+    }
+
+    /// Set the quality for lossy encoders
+    ///
+    /// # Arguments
+    /// * `quality` - The quality for lossy encoders (0-100).
+    pub fn set_quality(mut self, quality: u8) -> Self {
+        self.quality = quality;
+        self
+    }
+
+    /// Get the width of the image
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Set the width of the image
+    ///
+    /// # Arguments
+    /// * `width` - The width of the image.
+    pub fn set_width(mut self, width: usize) -> Self {
+        self.width = width;
+        self
+    }
+
+    /// Get the height of the image
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    /// Set the height of the image
+    ///
+    /// # Arguments
+    /// * `height` - The height of the image.
+    pub fn set_height(mut self, height: usize) -> Self {
+        self.height = height;
+        self
+    }
+
+    /// Get the colorspace of the input image
+    pub fn colorspace(&self) -> ColorSpace {
+        self.colorspace
+    }
+
+    /// Set the colorspace of the input image
+    ///
+    /// # Arguments
+    /// * `colorspace` - The colorspace of the input image.
+    pub fn set_colorspace(mut self, colorspace: ColorSpace) -> Self {
+        self.colorspace = colorspace;
+        self
+    }
+
+    /// Get the chroma subsampling for the encoder
+    pub fn chroma_subsampling(&self) -> (u8, u8) {
+        self.chroma_subsampling
+    }
+
+    /// Set the chroma subsampling for the encoder
+    ///
+    /// # Arguments
+    /// * `chroma_subsampling` - The chroma subsampling for the encoder (e.g. (4, 2) for 4:2:0).
+    pub fn set_chroma_subsampling(mut self, chroma_subsampling: (u8, u8)) -> Self {
+        self.chroma_subsampling = chroma_subsampling;
+        self
+    }
+
+    /// Get the progressive encoding for the encoder
+    pub fn progressive(&self) -> bool {
+        self.progressive
+    }
+
+    /// Set the progressive encoding for the encoder
+    ///
+    /// # Arguments
+    /// * `progressive` - Whether to use progressive encoding for the encoder.
+    pub fn set_progressive(mut self, progressive: bool) -> Self {
+        self.progressive = progressive;
+        self
+    }
+
+    /// Get the lossless encoding for the encoder
+    pub fn lossless(&self) -> bool {
+        self.lossless
+    }
+
+    /// Set the lossless encoding for the encoder
+    ///
+    /// # Arguments
+    /// * `lossless` - Whether to use lossless encoding for the encoder.
+    pub fn set_lossless(mut self, lossless: bool) -> Self {
+        self.lossless = lossless;
+        self
+    }
+
+    /// Get the forced SIMD backend    ///
+    /// If None, the encoder will choose the best available SIMD backend for the current platform.
+    pub fn forced_simd_backend(&self) -> Option<SimdBackend> {
+        self.forced_simd_backend
+    }
+
+    /// Set the forced SIMD backend
+    ///
+    /// # Arguments
+    /// * `forced_simd_backend` - The SIMD backend to use for encoding.
+    /// If None, the encoder will choose the best available SIMD backend for the current platform.
     pub fn set_forced_simd_backend(mut self, forced_simd_backend: Option<SimdBackend>) -> Self {
         self.forced_simd_backend = forced_simd_backend;
         self
