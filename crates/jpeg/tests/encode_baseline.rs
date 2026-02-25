@@ -81,11 +81,7 @@ fn encode_baseline_jpeg420() {
 
         // Save as jpeg file
         std::fs::create_dir_all("out").unwrap();
-        std::fs::write(
-            &format!("out/jpeg420_encoded_{}.jpg", backend),
-            &encoded,
-        )
-        .unwrap();
+        std::fs::write(&format!("out/jpeg420_encoded_{}.jpg", backend), &encoded).unwrap();
 
         // Round-trip: decode the encoded JPEG and verify dimensions
         let mut decoder = JpegDecoder::new(&encoded[..]);
@@ -108,7 +104,6 @@ fn encode_baseline_jpeg420() {
         );
     }
 }
-
 
 #[test_log::test]
 fn encode_baseline_jpeg444() {
@@ -134,11 +129,7 @@ fn encode_baseline_jpeg444() {
 
         // Save as jpeg file
         std::fs::create_dir_all("out").unwrap();
-        std::fs::write(
-            &format!("out/jpeg444_encoded_{}.jpg", backend),
-            &encoded,
-        )
-        .unwrap();
+        std::fs::write(&format!("out/jpeg444_encoded_{}.jpg", backend), &encoded).unwrap();
 
         // Round-trip: decode the encoded JPEG and verify dimensions
         let mut decoder = JpegDecoder::new(&encoded[..]);

@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 dicom = { version = "0.9.0", default-features = false }
+log.workspace = true

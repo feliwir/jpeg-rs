@@ -12,7 +12,7 @@ pub fn extract_pixel_data_from_dicom(dicom_data: &[u8], frame_number: usize) -> 
         DicomValue::PixelSequence(seq) => {
             let number_of_frames = match dcm.get(tags::NUMBER_OF_FRAMES) {
                 Some(elem) => elem.to_int::<u32>().unwrap_or_else(|e| {
-                    panic!("Invalid Number of Frames: {}", e);
+                    log::warn!("Invalid Number of Frames: {}", e);
                     1
                 }),
                 None => 1,

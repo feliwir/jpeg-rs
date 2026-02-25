@@ -1,0 +1,17 @@
+[package]
+name = "jpeg-bin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+jpeg = { version = "0.1.0", path = "../jpeg" }
+jpeg-common = { version = "0.1.0", path = "../jpeg-common" }
+clap = { version = "4", features = ["derive"] }
+
+[[bin]]
+name = "cjpeg"
+path = "src/cjpeg.rs"
+
+[[bin]]
+name = "djpeg"
+path = "src/djpeg.rs"
