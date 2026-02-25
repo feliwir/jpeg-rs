@@ -1,5 +1,5 @@
 mod fixed;
 mod float;
-use super::tables::{COS_TABLE, COS_TABLE_FIXED};
+use super::tables::*;
 pub use fixed::idct_fixed;
 pub use float::idct;

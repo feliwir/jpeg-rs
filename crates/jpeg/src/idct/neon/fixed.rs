@@ -1,9 +1,5 @@
 // ── Inverse DCT ─────────────────────────────────────────────────────────────
-
-use super::COS_TABLE_FIXED;
-
-/// Fixed-point scaling factor
-const FIX_BITS: i32 = 14;
+use super::{COS_TABLE_FIXED, FIX_BITS};
 
 /// Perform the 2D Inverse Discrete Cosine Transform on an 8×8 block.
 ///

@@ -17,5 +17,9 @@ name = "idct_bench"
 harness = false
 
 [[bench]]
+name = "fdct_bench"
+harness = false
+
+[[bench]]
 name = "color_convert_bench"
 harness = false

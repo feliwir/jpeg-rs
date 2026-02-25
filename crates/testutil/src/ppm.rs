@@ -13,7 +13,7 @@ pub fn save_pixels_as_ppm(filename: &str, pixels: &[u8], width: usize, height: u
     output.write_all(pixels).unwrap();
 }
 
-pub fn load_pixels_from_ppm(data: &[u8]) -> (Vec<u8>, usize, usize) {
+pub fn load_pixels_from_ppm(data: &[u8]) -> (Vec<u8>, usize, usize, usize) {
     use std::io::BufRead;
     let mut reader = std::io::Cursor::new(data);
     let mut lines = reader.by_ref().lines();
@@ -31,11 +31,11 @@ pub fn load_pixels_from_ppm(data: &[u8]) -> (Vec<u8>, usize, usize) {
     // Read maxval
     let maxval_line = lines.next().unwrap().unwrap();
     let maxval: usize = maxval_line.parse().unwrap();
-    assert_eq!(maxval, 255);
+    assert!(maxval <= 65535);
 
     // Read pixel data
     let mut pixels = Vec::new();
     reader.read_to_end(&mut pixels).unwrap();
 
-    (pixels, width, height)
+    (pixels, width, height, maxval)
 }

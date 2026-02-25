@@ -1,8 +1,5 @@
 // ── Forward DCT (fixed-point) ────────────────────────────────────────────────
-use super::COS_TABLE_FIXED;
-
-/// Fixed-point scaling factor (must match the IDCT table precision).
-const FIX_BITS: i32 = 14;
+use super::{COS_TABLE_FIXED, FIX_BITS};
 
 /// Perform the 2D forward Discrete Cosine Transform on an 8×8 block.
 ///

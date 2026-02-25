@@ -1,5 +1,8 @@
 use std::f32::consts::FRAC_1_SQRT_2;
 
+/// Fixed-point scaling factor (must match the DCT table precision).
+pub const FIX_BITS: i32 = 14;
+
 /// Precomputed cosine values for the forward DCT.
 ///
 /// Uses integer arithmetic with a fixed-point representation (scaled by 2^FIX_BITS).

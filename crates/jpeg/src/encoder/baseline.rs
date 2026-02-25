@@ -68,6 +68,24 @@ fn scaled_quant_table(base: &[u8; 64], quality: u8) -> [i32; 64] {
     table
 }
 
+/// Convert the user-facing chroma subsampling notation (J:a style) to JPEG
+/// sampling factors for the Y component.  Cb and Cr always use 1×1.
+///
+/// | Input     | Standard | Y factors |
+/// |-----------|----------|-----------|
+/// | `(4, 4)`  | 4:4:4    | 1 × 1     |
+/// | `(4, 2)`  | 4:2:0    | 2 × 2     |
+/// | `(4, 1)`  | 4:2:2    | 2 × 1     |
+/// | `(h, v)` with h,v ≤ 4 | direct | h × v |
+fn sampling_factors(subsampling: (u8, u8)) -> (u8, u8) {
+    match subsampling {
+        (4, 4) => (1, 1), // 4:4:4 – no chroma subsampling
+        (4, 2) => (2, 2), // 4:2:0 – half in both dimensions
+        (4, 1) => (2, 1), // 4:2:2 – half horizontally only
+        (h, v) => (h, v), // treat as direct sampling factors
+    }
+}
+
 /// Build the component list for the given colorspace and subsampling.
 fn build_components(colorspace: ColorSpace, h_samp: u8, v_samp: u8) -> Vec<Component> {
     match colorspace {
@@ -96,7 +114,7 @@ pub(crate) fn encode_baseline<W: Write>(
     let height = options.height();
     let quality = options.quality();
     let colorspace = options.colorspace();
-    let (h_samp, v_samp) = options.chroma_subsampling();
+    let (h_samp, v_samp) = sampling_factors(options.chroma_subsampling());
 
     let num_components = colorspace.num_components();
     let expected_size = width * height * num_components;
@@ -265,10 +283,15 @@ fn fill_block(
     // the component's own coordinate space.
     // Component pixel coordinate = block_pixel * (img_comp_size / mcu_grid_size)
     // which simplifies to scaling by samp / max
+    // Step size: for Y (h_samp == h_max) step is 1; for subsampled
+    // chroma the block must cover the full MCU area so step > 1.
+    let step_x = h_max / h_samp;
+    let step_y = v_max / v_samp;
+
     for row in 0..8 {
         for col in 0..8 {
-            let src_x = (block_x0 + col) * h_samp / h_max;
-            let src_y = (block_y0 + row) * v_samp / v_max;
+            let src_x = block_x0 + col * step_x;
+            let src_y = block_y0 + row * step_y;
 
             // Clamp to image bounds (repeat edge pixel)
             let sx = src_x.min(img_w - 1);
