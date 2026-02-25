@@ -64,7 +64,7 @@ impl<R: std::io::Read> JpegDecoder<R> {
     /// Output format:
     /// - **Grayscale** (1 component): 1 byte per pixel
     /// - **YCbCr** (3 components): 3 bytes per pixel (converted to RGB)
-    pub(crate) fn decode_mcu_ycbcr(&mut self, output: &mut [u8]) -> Result<(), DecodeError> {
+    pub(crate) fn decode_baseline(&mut self, output: &mut [u8]) -> Result<(), DecodeError> {
         self.check_tables()?;
         self.setup_mcu_params();
 

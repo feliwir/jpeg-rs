@@ -10,9 +10,13 @@ use crate::{
     marker::{self, MARKER_PREFIX, Marker},
 };
 
+#[cfg(feature = "baseline")]
 mod baseline;
+#[cfg(feature = "lossless")]
 mod lossless;
+#[cfg(feature = "progressive")]
 mod progressive;
+#[cfg(feature = "progressive")]
 pub use progressive::ProgressiveState;
 
 #[derive(Default)]
@@ -307,14 +311,29 @@ impl<R: BufRead> JpegDecoder<R> {
         }
 
         if self.is_lossless {
-            self.decode_lossless(buffer)?;
-        } else if self.is_progressive {
-            self.decode_progressive(buffer)?;
-        } else {
-            self.decode_mcu_ycbcr(buffer)?;
+            #[cfg(feature = "lossless")]
+            return self.decode_lossless(buffer);
+            #[cfg(not(feature = "lossless"))]
+            return Err(DecodeError::Unsupported(
+                "Lossless JPEG decoding is not supported in this build".to_string(),
+            ));
         }
 
-        Ok(())
+        if self.is_progressive {
+            #[cfg(feature = "progressive")]
+            return self.decode_progressive(buffer);
+            #[cfg(not(feature = "progressive"))]
+            return Err(DecodeError::Unsupported(
+                "Progressive JPEG decoding is not supported in this build".to_string(),
+            ));
+        }
+
+        #[cfg(feature = "baseline")]
+        return self.decode_baseline(buffer);
+        #[cfg(not(feature = "baseline"))]
+        Err(DecodeError::Unsupported(
+            "Baseline JPEG decoding is not supported in this build".to_string(),
+        ))
     }
 
     /// Read the length of a segment from the reader

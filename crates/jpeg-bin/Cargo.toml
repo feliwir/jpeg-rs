@@ -3,8 +3,15 @@ name = "jpeg-bin"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+baseline = ["jpeg/baseline"]
+extended = ["jpeg/extended"]
+progressive = ["jpeg/progressive"]
+lossless = ["jpeg/lossless"]
+
 [dependencies]
-jpeg = { version = "0.1.0", path = "../jpeg" }
+jpeg = { version = "0.1.0", path = "../jpeg", default-features = false}
 jpeg-common = { version = "0.1.0", path = "../jpeg-common" }
 clap = { version = "4", features = ["derive"] }
 

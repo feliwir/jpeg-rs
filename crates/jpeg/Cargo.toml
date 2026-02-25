@@ -3,6 +3,13 @@ name = "jpeg"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["baseline", "extended", "progressive", "lossless"]
+baseline = []
+extended = []
+progressive = []
+lossless = []
+
 [dependencies]
 jpeg-common = { version = "0.1.0", path = "../jpeg-common" }
 log.workspace = true

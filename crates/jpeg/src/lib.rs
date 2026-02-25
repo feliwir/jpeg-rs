@@ -12,6 +12,7 @@ mod io;
 mod marker;
 
 pub use decoder::JpegDecoder;
+#[cfg(feature = "progressive")]
 pub use decoder::ProgressiveState;
 pub use encoder::JpegEncoder;
 pub use error::EncodeError;
