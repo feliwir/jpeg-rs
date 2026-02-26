@@ -9,6 +9,9 @@ pub fn save_pixels_as_pgm(
 ) {
     use std::fs::File;
     use std::io::Write;
+    if let Some(parent) = std::path::Path::new(filename).parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
     let mut output = File::create(filename).unwrap();
     writeln!(output, "P5").unwrap();
     writeln!(output, "{} {} ", width, height).unwrap();

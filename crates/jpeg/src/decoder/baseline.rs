@@ -8,11 +8,14 @@
 //! 4. **Inverse DCT**   – transform 8×8 frequency-domain block to spatial pixels
 //! 5. **Color convert** – convert YCbCr to RGB and write to the output buffer
 
+use super::{JpegDecoder, alloc_mcu_blocks};
 use crate::{
-    color_convert, constants::UN_ZIGZAG, error::DecodeError, huffman::HuffmanTable, io::BitReader,
+    color_convert::{self, ImageLayout, McuGeometry, SamplingParams, write_mcu_pixels},
+    constants::UN_ZIGZAG,
+    error::DecodeError,
+    huffman::HuffmanTable,
+    io::BitReader,
 };
-
-use super::JpegDecoder;
 
 // ── Decode entry point ──────────────────────────────────────────────────────
 
@@ -68,12 +71,15 @@ impl<R: std::io::Read> JpegDecoder<R> {
         self.check_tables()?;
         self.setup_mcu_params();
 
-        if self.info.components != 1 && self.info.components != 3 {
+        let source_components = self.components.len();
+        if source_components != 1 && source_components != 3 {
             return Err(DecodeError::Unsupported(format!(
                 "Only grayscale (1) and YCbCr (3) components are supported, got {}",
-                self.info.components
+                source_components
             )));
         }
+
+        let output_format = self.output_format()?;
 
         // Copy structural parameters so we can borrow the reader separately
         let mcu_x = self.mcu_x;
@@ -84,10 +90,7 @@ impl<R: std::io::Read> JpegDecoder<R> {
         let v_max = self.v_max;
         let img_w = self.info.width;
         let img_h = self.info.height;
-        let num_components = self.info.components;
-        let bytes_per_component = if self.info.precision > 8 { 2 } else { 1 };
-        let bytes_per_pixel = bytes_per_component * num_components;
-
+        let num_components = source_components;
         // Snapshot per-component info so we can borrow the reader separately
         let h_samples: Vec<usize> = self
             .components
@@ -99,6 +102,16 @@ impl<R: std::io::Read> JpegDecoder<R> {
             .iter()
             .map(|c| c.vertical_sampling_factor)
             .collect();
+        let sampling = SamplingParams {
+            h_samples: &h_samples,
+            v_samples: &v_samples,
+            h_max,
+            v_max,
+        };
+        let image = ImageLayout {
+            width: img_w,
+            height: img_h,
+        };
         let qt_ids: Vec<usize> = self
             .components
             .iter()
@@ -126,11 +139,7 @@ impl<R: std::io::Read> JpegDecoder<R> {
         let mut reader = BitReader::new(&mut self.reader);
 
         // Temporary storage for the decoded 8×8 blocks within one MCU
-        let mut mcu_blocks: Vec<Vec<[i32; 64]>> = h_samples
-            .iter()
-            .zip(&v_samples)
-            .map(|(h, v)| vec![[0i32; 64]; h * v])
-            .collect();
+        let mut mcu_blocks = alloc_mcu_blocks(&h_samples, &v_samples);
 
         // ── Main MCU loop ───────────────────────────────────────────────
         for mcu_row in 0..mcu_y {
@@ -172,21 +181,20 @@ impl<R: std::io::Read> JpegDecoder<R> {
                 }
 
                 // Step 2: Convert blocks → output pixels.
-                color_convert::write_mcu_pixels(
+                let mcu = McuGeometry {
+                    width: mcu_w,
+                    height: mcu_h,
+                    col: mcu_col,
+                    row: mcu_row,
+                };
+                write_mcu_pixels(
                     self.ycbcr_to_rgb_fn,
+                    &output_format,
                     &mcu_blocks,
-                    &h_samples,
-                    &v_samples,
-                    h_max,
-                    v_max,
-                    mcu_w,
-                    mcu_h,
-                    mcu_col,
-                    mcu_row,
-                    img_w,
-                    img_h,
-                    num_components,
-                    bytes_per_pixel,
+                    sampling,
+                    mcu,
+                    image,
+                    source_components,
                     output,
                 );
 

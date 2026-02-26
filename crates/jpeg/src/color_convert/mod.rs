@@ -6,9 +6,38 @@ pub mod sse;
 #[cfg(any(target_arch = "x86_64"))]
 pub mod avx2;
 
+use jpeg_common::color_space::ColorSpace;
 use jpeg_common::options::SimdBackend;
 
 use crate::component::MAX_SAMPLING_FACTOR;
+
+#[derive(Copy, Clone)]
+pub(crate) struct OutputLayout {
+    pub(crate) colorspace: ColorSpace,
+    pub(crate) bytes_per_pixel: usize,
+}
+
+#[derive(Copy, Clone)]
+pub(crate) struct ImageLayout {
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+}
+
+#[derive(Copy, Clone)]
+pub(crate) struct McuGeometry {
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+    pub(crate) col: usize,
+    pub(crate) row: usize,
+}
+
+#[derive(Copy, Clone)]
+pub(crate) struct SamplingParams<'a> {
+    pub(crate) h_samples: &'a [usize],
+    pub(crate) v_samples: &'a [usize],
+    pub(crate) h_max: usize,
+    pub(crate) v_max: usize,
+}
 
 // BT.601 full-range fixed-point coefficients (14-bit precision).
 //
@@ -104,6 +133,114 @@ fn sample_component(
     blocks[block_idx][sample_idx]
 }
 
+#[allow(clippy::too_many_arguments)]
+fn write_source_row<const SOURCE_COMPONENTS: usize>(
+    ycbcr_to_rgb_fn: YcbcrToRgbFn,
+    layout: &OutputLayout,
+    output: &mut [u8],
+    out_start: usize,
+    valid_w: usize,
+    component_rows: [&[i32]; SOURCE_COMPONENTS],
+    rgb_row: &mut [u8],
+) {
+    let output_colorspace = layout.colorspace;
+    let bytes_per_pixel = layout.bytes_per_pixel;
+    let y_row = component_rows[0];
+    match output_colorspace {
+        ColorSpace::Grayscale => {
+            for px in 0..valid_w {
+                let y = y_row[px];
+                if bytes_per_pixel == 1 {
+                    output[out_start + px] = y as u8;
+                } else {
+                    let dst = out_start + px * bytes_per_pixel;
+                    let bytes = (y as u16).to_le_bytes();
+                    output[dst] = bytes[0];
+                    output[dst + 1] = bytes[1];
+                }
+            }
+        }
+        ColorSpace::YCbCr => {
+            for px in 0..valid_w {
+                let dst = out_start + px * bytes_per_pixel;
+
+                let cb = if SOURCE_COMPONENTS == 3 {
+                    component_rows[1][px]
+                } else {
+                    128
+                };
+                let cr = if SOURCE_COMPONENTS == 3 {
+                    component_rows[2][px]
+                } else {
+                    128
+                };
+
+                if bytes_per_pixel == 3 {
+                    output[dst] = y_row[px] as u8;
+                    output[dst + 1] = cb as u8;
+                    output[dst + 2] = cr as u8;
+                } else {
+                    let y = (y_row[px] as u16).to_le_bytes();
+                    let cb = (cb as u16).to_le_bytes();
+                    let cr = (cr as u16).to_le_bytes();
+                    output[dst] = y[0];
+                    output[dst + 1] = y[1];
+                    output[dst + 2] = cb[0];
+                    output[dst + 3] = cb[1];
+                    output[dst + 4] = cr[0];
+                    output[dst + 5] = cr[1];
+                }
+            }
+        }
+        ColorSpace::RGB => {
+            if SOURCE_COMPONENTS == 1 {
+                for px in 0..valid_w {
+                    let dst = out_start + px * bytes_per_pixel;
+                    if bytes_per_pixel == 3 {
+                        let y = y_row[px] as u8;
+                        output[dst] = y;
+                        output[dst + 1] = y;
+                        output[dst + 2] = y;
+                    } else {
+                        let y = (y_row[px] as u16).to_le_bytes();
+                        output[dst] = y[0];
+                        output[dst + 1] = y[1];
+                        output[dst + 2] = y[0];
+                        output[dst + 3] = y[1];
+                        output[dst + 4] = y[0];
+                        output[dst + 5] = y[1];
+                    }
+                }
+                return;
+            }
+
+            let cb_row = component_rows[1];
+            let cr_row = component_rows[2];
+            unsafe {
+                (ycbcr_to_rgb_fn)(
+                    &y_row[..valid_w],
+                    &cb_row[..valid_w],
+                    &cr_row[..valid_w],
+                    &mut rgb_row[..valid_w * 3],
+                );
+            }
+
+            if bytes_per_pixel == 3 {
+                output[out_start..out_start + valid_w * 3].copy_from_slice(&rgb_row[..valid_w * 3]);
+            } else {
+                for px in 0..valid_w {
+                    let dst = out_start + px * bytes_per_pixel;
+                    let src = px * 3;
+                    output[dst] = rgb_row[src];
+                    output[dst + 1] = rgb_row[src + 1];
+                    output[dst + 2] = rgb_row[src + 2];
+                }
+            }
+        }
+        _ => unreachable!("unsupported output colorspace"),
+    }
+}
+
 /// Write decoded MCU blocks to the output buffer, performing color conversion.
 ///
 /// For grayscale images (1 component), writes the Y value directly.
@@ -115,23 +252,35 @@ fn sample_component(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn write_mcu_pixels(
     ycbcr_to_rgb_fn: YcbcrToRgbFn,
+    layout: &OutputLayout,
     mcu_blocks: &[Vec<[i32; 64]>],
-    h_samples: &[usize],
-    v_samples: &[usize],
-    h_max: usize,
-    v_max: usize,
-    mcu_w: usize,
-    mcu_h: usize,
-    mcu_col: usize,
-    mcu_row: usize,
-    img_w: usize,
-    img_h: usize,
-    num_components: usize,
-    bytes_per_pixel: usize,
+    sampling: SamplingParams<'_>,
+    mcu: McuGeometry,
+    image: ImageLayout,
+    source_components: usize,
     output: &mut [u8],
 ) {
-    if num_components == 1 {
-        // Grayscale — write Y values directly
+    let bytes_per_pixel = layout.bytes_per_pixel;
+    let h_samples = sampling.h_samples;
+    let v_samples = sampling.v_samples;
+    let h_max = sampling.h_max;
+    let v_max = sampling.v_max;
+    let mcu_w = mcu.width;
+    let mcu_h = mcu.height;
+    let mcu_col = mcu.col;
+    let mcu_row = mcu.row;
+    let img_w = image.width;
+    let img_h = image.height;
+
+    if source_components != 1 && source_components != 3 {
+        unreachable!("unsupported source component count")
+    }
+
+    if source_components == 1 {
+        // Grayscale source
+        let mut y_row = [0i32; MAX_MCU_WIDTH];
+        let mut rgb_row = [0u8; MAX_MCU_WIDTH * 3];
+
         for py in 0..mcu_h {
             let abs_y = mcu_row * mcu_h + py;
             if abs_y >= img_h {
@@ -140,10 +289,12 @@ pub(crate) fn write_mcu_pixels(
 
             let abs_x_start = mcu_col * mcu_w;
             let valid_w = mcu_w.min(img_w.saturating_sub(abs_x_start));
-            let out_start = (abs_y * img_w + abs_x_start) * bytes_per_pixel;
+            if valid_w == 0 {
+                continue;
+            }
 
             for px in 0..valid_w {
-                let val = sample_component(
+                y_row[px] = sample_component(
                     &mcu_blocks[0],
                     h_samples[0],
                     v_samples[0],
@@ -152,20 +303,21 @@ pub(crate) fn write_mcu_pixels(
                     px,
                     py,
                 );
-
-                if bytes_per_pixel == 1 {
-                    output[out_start + px] = val as u8;
-                } else {
-                    // >8-bit: store as little-endian u16
-                    let dst = out_start + px * bytes_per_pixel;
-                    let bytes = (val as u16).to_le_bytes();
-                    output[dst] = bytes[0];
-                    output[dst + 1] = bytes[1];
-                }
             }
+
+            let out_start = (abs_y * img_w + abs_x_start) * bytes_per_pixel;
+            write_source_row::<1>(
+                ycbcr_to_rgb_fn,
+                layout,
+                output,
+                out_start,
+                valid_w,
+                [&y_row],
+                &mut rgb_row,
+            );
         }
     } else {
-        // YCbCr → RGB via SIMD delegate
+        // YCbCr source
         let mut y_row = [0i32; MAX_MCU_WIDTH];
         let mut cb_row = [0i32; MAX_MCU_WIDTH];
         let mut cr_row = [0i32; MAX_MCU_WIDTH];
@@ -214,29 +366,16 @@ pub(crate) fn write_mcu_pixels(
                 );
             }
 
-            // Batch YCbCr→RGB conversion
-            unsafe {
-                (ycbcr_to_rgb_fn)(
-                    &y_row[..valid_w],
-                    &cb_row[..valid_w],
-                    &cr_row[..valid_w],
-                    &mut rgb_row[..valid_w * 3],
-                );
-            }
-
-            // Write to output buffer
             let out_start = (abs_y * img_w + abs_x_start) * bytes_per_pixel;
-            if bytes_per_pixel == 3 {
-                output[out_start..out_start + valid_w * 3].copy_from_slice(&rgb_row[..valid_w * 3]);
-            } else {
-                for px in 0..valid_w {
-                    let dst = out_start + px * bytes_per_pixel;
-                    let src = px * 3;
-                    output[dst] = rgb_row[src];
-                    output[dst + 1] = rgb_row[src + 1];
-                    output[dst + 2] = rgb_row[src + 2];
-                }
-            }
+            write_source_row::<3>(
+                ycbcr_to_rgb_fn,
+                layout,
+                output,
+                out_start,
+                valid_w,
+                [&y_row, &cb_row, &cr_row],
+                &mut rgb_row,
+            );
         }
     }
 }

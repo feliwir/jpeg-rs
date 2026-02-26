@@ -1,5 +1,8 @@
 use jpeg::JpegDecoder;
-use jpeg_common::options::{DecoderOptions, SimdBackend};
+use jpeg_common::{
+    color_space::ColorSpace,
+    options::{DecoderOptions, SimdBackend},
+};
 use testutil::{save_pixels_as_pgm, save_pixels_as_ppm};
 
 #[test_log::test]
@@ -105,6 +108,62 @@ fn decode_progressive_jpeg420() {
             &pixels,
             width,
             height,
+        );
+    }
+}
+
+#[test_log::test]
+fn decode_progressive_jpeg420_as_grayscale() {
+    let data = include_bytes!("../../../testfiles/jpeg/w3/jpeg420exif.prog.jpg");
+
+    for backend in SimdBackend::iter() {
+        if !backend.is_supported() {
+            log::warn!(
+                "Skipping {} backend: not supported on this platform",
+                backend
+            );
+            continue;
+        }
+
+        let options = DecoderOptions::default()
+            .set_forced_simd_backend(Some(backend))
+            .set_out_colorspace(Some(ColorSpace::Grayscale));
+        let mut decoder = JpegDecoder::new_with_options(&data[..], options);
+        decoder.decode_headers().unwrap();
+
+        let (width, height, precision, components) = {
+            let info = decoder.info().unwrap();
+            (info.width, info.height, info.precision, info.components)
+        };
+        assert_eq!(width, 2048);
+        assert_eq!(height, 1536);
+        assert_eq!(precision, 8);
+        assert_eq!(components, 3);
+
+        let mut pixels = vec![0u8; decoder.required_buffer_size().unwrap()];
+        let mut state = decoder.start_progressive().unwrap();
+
+        while decoder.decode_next_scan(&mut state).unwrap() {
+            decoder.reconstruct(&state, &mut pixels).unwrap();
+            save_pixels_as_pgm(
+                &format!(
+                    "out/jpeg420exif.prog_{}_scan{:02}.pgm",
+                    backend,
+                    state.scan_count()
+                ),
+                &pixels,
+                width,
+                height,
+                precision as usize,
+            );
+        }
+        decoder.reconstruct(&state, &mut pixels).unwrap();
+        save_pixels_as_pgm(
+            &format!("out/jpeg420exif.prog_{}.pgm", backend),
+            &pixels,
+            width,
+            height,
+            precision as usize,
         );
     }
 }

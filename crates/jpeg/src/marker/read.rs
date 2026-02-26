@@ -9,6 +9,20 @@ use crate::{
     huffman::HuffmanTable,
 };
 
+fn read_segment<R: std::io::BufRead>(
+    decoder: &mut JpegDecoder<R>,
+    error: fn(String) -> DecodeError,
+    kind: &str,
+) -> Result<Vec<u8>, DecodeError> {
+    let length = decoder
+        .read_length()?
+        .checked_sub(2)
+        .ok_or_else(|| error(format!("Invalid {kind} length, must be greater than 2")))?;
+    let mut buf = vec![0u8; length];
+    decoder.reader.read_exact(&mut buf)?;
+    Ok(buf)
+}
+
 /// Section:`B.2.2 Frame header syntax`
 pub(crate) fn read_start_of_frame<R: std::io::BufRead>(
     decoder: &mut JpegDecoder<R>,
@@ -21,11 +35,7 @@ pub(crate) fn read_start_of_frame<R: std::io::BufRead>(
     }
     decoder.did_read_sof = true;
 
-    let length = decoder.read_length()?.checked_sub(2).ok_or_else(|| {
-        DecodeError::SofError("Invalid SOF length, must be greater than 2".to_string())
-    })?;
-    let mut buf = vec![0u8; length];
-    decoder.reader.read_exact(&mut buf)?;
+    let buf = read_segment(decoder, DecodeError::SofError, "SOF")?;
 
     // Parse the SOF segment to extract image information
     // For simplicity, we will just parse the width and height here
@@ -60,9 +70,10 @@ pub(crate) fn read_start_of_frame<R: std::io::BufRead>(
 
     let expected = 6 + 3 * decoder.info.components;
     // length should be equal to num components
-    if length != expected {
+    if buf.len() != expected {
         return Err(DecodeError::SofError(format!(
-            "Length of start of frame differs from expected {expected},value is {length}"
+            "Length of start of frame differs from expected {expected},value is {}",
+            buf.len()
         )));
     }
 
@@ -100,11 +111,7 @@ pub(crate) fn read_start_of_frame<R: std::io::BufRead>(
 pub(crate) fn read_start_of_scan<R: std::io::BufRead>(
     decoder: &mut JpegDecoder<R>,
 ) -> Result<(), DecodeError> {
-    let length = decoder.read_length()?.checked_sub(2).ok_or_else(|| {
-        DecodeError::SofError("Invalid SOS length, must be greater than 2".to_string())
-    })?;
-    let mut buf = vec![0u8; length];
-    decoder.reader.read_exact(&mut buf)?;
+    let buf = read_segment(decoder, DecodeError::SosError, "SOS")?;
 
     let ns = buf[0] as usize; // Number of components in scan
 

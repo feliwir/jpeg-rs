@@ -75,6 +75,48 @@ pub struct JpegDecoder<R> {
     pub(crate) ycbcr_to_rgb_fn: color_convert::YcbcrToRgbFn,
 }
 
+pub(crate) fn alloc_mcu_blocks(h_samples: &[usize], v_samples: &[usize]) -> Vec<Vec<[i32; 64]>> {
+    h_samples
+        .iter()
+        .zip(v_samples)
+        .map(|(h, v)| vec![[0i32; 64]; h * v])
+        .collect()
+}
+
+impl<R> JpegDecoder<R> {
+    pub(crate) fn output_colorspace(&self) -> Option<ColorSpace> {
+        self.options
+            .out_colorspace()
+            .or(match self.input_colorspace {
+                ColorSpace::Grayscale => Some(ColorSpace::Grayscale),
+                ColorSpace::YCbCr => Some(ColorSpace::RGB),
+                ColorSpace::CMYK => Some(ColorSpace::CMYK),
+                _ => None,
+            })
+    }
+
+    pub(crate) fn output_format(&self) -> Result<color_convert::OutputLayout, DecodeError> {
+        let colorspace = self.output_colorspace().ok_or_else(|| {
+            DecodeError::Unsupported("Could not determine output colorspace".to_string())
+        })?;
+        if !matches!(
+            colorspace,
+            ColorSpace::Grayscale | ColorSpace::RGB | ColorSpace::YCbCr
+        ) {
+            return Err(DecodeError::Unsupported(format!(
+                "Output colorspace {:?} is not supported",
+                colorspace
+            )));
+        }
+        let bytes_per_component = if self.info.precision > 8 { 2 } else { 1 };
+        let bytes_per_pixel = bytes_per_component * colorspace.num_components();
+        Ok(color_convert::OutputLayout {
+            colorspace,
+            bytes_per_pixel,
+        })
+    }
+}
+
 impl<R: BufRead> JpegDecoder<R> {
     /// Create a new decoder with the given reader and options
     ///
@@ -167,13 +209,12 @@ impl<R: BufRead> JpegDecoder<R> {
                     )));
                 }
                 // APP markers are used for metadata and can be skipped
-                Marker::APP(0) => {
-                    log::trace!("Found JFIF APP0 segment, skipping");
-                    let length = self.read_length()?;
-                    self.skip_segment(length as u16)?;
-                }
                 Marker::APP(v) => {
-                    log::trace!("Found APP{}, skipping", v);
+                    if v == 0 {
+                        log::trace!("Found JFIF APP0 segment, skipping");
+                    } else {
+                        log::trace!("Found APP{}, skipping", v);
+                    }
                     let length = self.read_length()?;
                     self.skip_segment(length as u16)?;
                 }
@@ -256,15 +297,7 @@ impl<R: BufRead> JpegDecoder<R> {
         if !self.headers_decoded {
             return None;
         }
-        let color_space = self
-            .options
-            .out_colorspace()
-            .unwrap_or(match self.info.components {
-                1 => ColorSpace::Grayscale,
-                3 => ColorSpace::YCbCr,
-                4 => ColorSpace::CMYK,
-                _ => return None,
-            });
+        let color_space = self.output_colorspace()?;
         let components = color_space.num_components();
         let bit_depth = if self.info.precision > 8 { 2 } else { 1 };
         Some(self.info.width * self.info.height * components * bit_depth)
@@ -310,30 +343,48 @@ impl<R: BufRead> JpegDecoder<R> {
             )));
         }
 
-        if self.is_lossless {
+        let decode_result = if self.is_lossless {
             #[cfg(feature = "lossless")]
-            return self.decode_lossless(buffer);
+            {
+                self.decode_lossless(buffer)
+            }
             #[cfg(not(feature = "lossless"))]
-            return Err(DecodeError::Unsupported(
-                "Lossless JPEG decoding is not supported in this build".to_string(),
-            ));
-        }
-
-        if self.is_progressive {
+            {
+                Err(DecodeError::Unsupported(
+                    "Lossless JPEG decoding is not supported in this build".to_string(),
+                ))
+            }
+        } else if self.is_progressive {
             #[cfg(feature = "progressive")]
-            return self.decode_progressive(buffer);
+            {
+                self.decode_progressive(buffer)
+            }
             #[cfg(not(feature = "progressive"))]
-            return Err(DecodeError::Unsupported(
-                "Progressive JPEG decoding is not supported in this build".to_string(),
-            ));
+            {
+                Err(DecodeError::Unsupported(
+                    "Progressive JPEG decoding is not supported in this build".to_string(),
+                ))
+            }
+        } else {
+            #[cfg(feature = "baseline")]
+            {
+                self.decode_baseline(buffer)
+            }
+            #[cfg(not(feature = "baseline"))]
+            {
+                Err(DecodeError::Unsupported(
+                    "Baseline JPEG decoding is not supported in this build".to_string(),
+                ))
+            }
+        };
+
+        decode_result?;
+
+        if let Some(output_colorspace) = self.output_colorspace() {
+            self.info.components = output_colorspace.num_components();
         }
 
-        #[cfg(feature = "baseline")]
-        return self.decode_baseline(buffer);
-        #[cfg(not(feature = "baseline"))]
-        Err(DecodeError::Unsupported(
-            "Baseline JPEG decoding is not supported in this build".to_string(),
-        ))
+        Ok(())
     }
 
     /// Read the length of a segment from the reader
