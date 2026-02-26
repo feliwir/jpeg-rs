@@ -45,7 +45,7 @@ fn encode_baseline_jpeg400() {
         assert_eq!(decoded.len(), width * height);
 
         // Check PSNR: lossy compression should produce reasonable quality
-        let psnr = compute_psnr(&pixel_data, &decoded);
+        let psnr = compute_psnr(&pixel_data, &decoded, 255.0);
         log::info!(
             "Backend {backend}: encoded {} bytes, PSNR = {psnr:.2} dB",
             encoded.len()
@@ -93,7 +93,7 @@ fn encode_baseline_jpeg420() {
         assert_eq!(decoded.len(), width * height * 3);
 
         // Check PSNR: lossy compression should produce reasonable quality
-        let psnr = compute_psnr(&pixel_data, &decoded);
+        let psnr = compute_psnr(&pixel_data, &decoded, 255.0);
         log::info!(
             "Backend {backend}: encoded {} bytes, PSNR = {psnr:.2} dB",
             encoded.len()
@@ -141,7 +141,7 @@ fn encode_baseline_jpeg444() {
         assert_eq!(decoded.len(), width * height * 3);
 
         // Check PSNR: lossy compression should produce reasonable quality
-        let psnr = compute_psnr(&pixel_data, &decoded);
+        let psnr = compute_psnr(&pixel_data, &decoded, 255.0);
         log::info!(
             "Backend {backend}: encoded {} bytes, PSNR = {psnr:.2} dB",
             encoded.len()

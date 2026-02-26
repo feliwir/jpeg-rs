@@ -200,6 +200,12 @@ pub struct EncoderOptions {
     /// - Respected by: `jpeg`
     height: usize,
 
+    /// Precision of the input image (bits per channel)
+    ///
+    /// - Default value: 8 (must be set by the user for encoders that require it)
+    /// - Respected by: `jpeg`
+    precision: u8,
+
     /// Colorspace of the input image
     ///
     /// - Default value: `RGB`
@@ -237,6 +243,7 @@ impl Default for EncoderOptions {
             quality: 85,
             width: 0,
             height: 0,
+            precision: 8,
             colorspace: ColorSpace::RGB,
             chroma_subsampling: (4, 2),
             progressive: false,
@@ -295,6 +302,20 @@ impl EncoderOptions {
     /// * `height` - The height of the image.
     pub fn set_height(mut self, height: usize) -> Self {
         self.height = height;
+        self
+    }
+
+    /// Get the precision of the input image (bits per channel)
+    pub fn precision(&self) -> u8 {
+        self.precision
+    }
+
+    /// Set the precision of the input image (bits per channel)
+    ///
+    /// # Arguments
+    /// * `precision` - The precision of the input image (bits per channel).
+    pub fn set_precision(mut self, precision: u8) -> Self {
+        self.precision = precision;
         self
     }
 

@@ -2,7 +2,7 @@
 
 use super::Marker;
 use crate::component::Component;
-use crate::constants::UN_ZIGZAG;
+use crate::constants::{BASE_CHROMA_QT, BASE_LUMA_QT, UN_ZIGZAG};
 use crate::error::EncodeError;
 use std::io::Write;
 
@@ -35,7 +35,14 @@ pub(crate) fn write_app0<W: Write>(writer: &mut W) -> Result<(), EncodeError> {
 }
 
 /// Write DQT (Define Quantization Table) markers
-pub(crate) fn write_dqt<W: Write>(writer: &mut W, quality: u8) -> Result<(), EncodeError> {
+///
+/// When `precision` > 8 the table entries are stored as 16-bit values
+/// (Pq = 1) per ITU-T T.81 §B.2.4.1.
+pub(crate) fn write_dqt<W: Write>(
+    writer: &mut W,
+    quality: u8,
+    precision: u8,
+) -> Result<(), EncodeError> {
     let q = if quality < 50 {
         (5000 / quality as i32) as u8
     } else {
@@ -43,69 +50,71 @@ pub(crate) fn write_dqt<W: Write>(writer: &mut W, quality: u8) -> Result<(), Enc
     }
     .max(1);
 
+    let is_16bit = precision > 8;
+    // For precision > 8, scale QT values by 2^(precision-8) so that
+    // quantized DCT coefficients stay in the same magnitude range as 8-bit.
+    let precision_scale: u32 = 1 << (precision.saturating_sub(8));
+    // Pq: 0 = 8-bit entries, 1 = 16-bit entries
+    let pq: u8 = if is_16bit { 1 } else { 0 };
+    // Length: 2 (length field) + 1 (Pq|Tq) + 64 * bytes_per_entry
+    let entry_bytes: u16 = if is_16bit { 2 } else { 1 };
+    let table_length: u16 = 2 + 1 + 64 * entry_bytes;
+    let max_val: u32 = if is_16bit { 65535 } else { 255 };
+
     // DQT marker for luminance (Y)
     let mut dqt_data = vec![0xFF, 0xDB];
-    dqt_data.push(0x00);
-    dqt_data.push(67); // Length (2 + 1 + 64)
-    dqt_data.push(0x00); // Precision=0, Table class=0 (luminance)
-
-    // Standard JPEG quantization table for Y (row-major order)
-    #[rustfmt::skip]
-    let base_table: [u8; 64] = [
-        16, 11, 10, 16, 24, 40, 51, 61,
-        12, 12, 14, 19, 26, 58, 60, 55,
-        14, 13, 16, 24, 40, 57, 69, 56,
-        14, 17, 22, 29, 51, 87, 80, 62,
-        18, 22, 37, 56, 68,109,103, 77,
-        24, 35, 55, 64, 81,104,113, 92,
-        49, 64, 78, 87,103,121,120,101,
-        72, 92, 95, 98,112,100,103, 99,
-    ];
+    dqt_data.push((table_length >> 8) as u8);
+    dqt_data.push((table_length & 0xFF) as u8);
+    dqt_data.push(pq << 4 | 0x00); // Pq | Tq=0 (luminance)
 
     // DQT values must be stored in zigzag scan order (ITU-T T.81 §B.2.4.1)
     for k in 0..64 {
-        let val = base_table[UN_ZIGZAG[k]];
-        let scaled = ((val as u32 * q as u32) / 100).min(255) as u8;
-        dqt_data.push(scaled);
+        let val = BASE_LUMA_QT[UN_ZIGZAG[k]];
+        let scaled = ((val as u32 * q as u32 * precision_scale) / 100)
+            .max(1)
+            .min(max_val);
+        if is_16bit {
+            dqt_data.push((scaled >> 8) as u8);
+            dqt_data.push((scaled & 0xFF) as u8);
+        } else {
+            dqt_data.push(scaled as u8);
+        }
     }
 
     writer.write_all(&dqt_data)?;
 
     // DQT marker for chrominance (Cb, Cr)
     let mut dqt_data = vec![0xFF, 0xDB];
-    dqt_data.push(0x00);
-    dqt_data.push(67); // Length
-    dqt_data.push(0x01); // Precision=0, Table class=1 (chrominance)
-
-    // Standard JPEG quantization table for Cb/Cr (row-major order)
-    #[rustfmt::skip]
-    let chroma_table: [u8; 64] = [
-        17, 18, 24, 47, 99, 99, 99, 99,
-        18, 21, 26, 66, 99, 99, 99, 99,
-        24, 26, 56, 99, 99, 99, 99, 99,
-        47, 66, 99, 99, 99, 99, 99, 99,
-        99, 99, 99, 99, 99, 99, 99, 99,
-        99, 99, 99, 99, 99, 99, 99, 99,
-        99, 99, 99, 99, 99, 99, 99, 99,
-        99, 99, 99, 99, 99, 99, 99, 99,
-    ];
+    dqt_data.push((table_length >> 8) as u8);
+    dqt_data.push((table_length & 0xFF) as u8);
+    dqt_data.push(pq << 4 | 0x01); // Pq | Tq=1 (chrominance)
 
     // DQT values must be stored in zigzag scan order (ITU-T T.81 §B.2.4.1)
     for k in 0..64 {
-        let val = chroma_table[UN_ZIGZAG[k]];
-        let scaled = ((val as u32 * q as u32) / 100).min(255) as u8;
-        dqt_data.push(scaled);
+        let val = BASE_CHROMA_QT[UN_ZIGZAG[k]];
+        let scaled = ((val as u32 * q as u32 * precision_scale) / 100)
+            .max(1)
+            .min(max_val);
+        if is_16bit {
+            dqt_data.push((scaled >> 8) as u8);
+            dqt_data.push((scaled & 0xFF) as u8);
+        } else {
+            dqt_data.push(scaled as u8);
+        }
     }
 
     writer.write_all(&dqt_data)?;
     Ok(())
 }
 
-/// Write a SOF0 (Start of Frame – Baseline) marker.
+/// Write a SOF (Start of Frame) marker.
+///
+/// Emits SOF0 (Baseline, 0xC0) for precision ≤ 8, or SOF1 (Extended, 0xC1)
+/// for precision > 8.
 ///
 /// `components` describes each image component (id, sampling factors,
 /// quantization table selector).
-pub(crate) fn write_sof0<W: Write>(
+pub(crate) fn write_sof<W: Write>(
     writer: &mut W,
     width: u16,
     height: u16,
@@ -116,7 +125,9 @@ pub(crate) fn write_sof0<W: Write>(
     //        + 1 (num components) + 3 * num_components
     let length = (8 + 3 * components.len()) as u16;
 
-    let mut sof = vec![0xFF, 0xC0]; // SOF0 marker
+    // SOF0 (0xC0) for baseline, SOF1 (0xC1) for extended
+    let sof_marker = if precision > 8 { 0xC1u8 } else { 0xC0u8 };
+    let mut sof = vec![0xFF, sof_marker];
     sof.push((length >> 8) as u8);
     sof.push((length & 0xFF) as u8);
     sof.push(precision);
@@ -145,20 +156,30 @@ pub(crate) fn write_sof0<W: Write>(
 ///
 /// For color images (`num_components > 1`), writes both luminance and
 /// chrominance tables.  For grayscale, only luminance tables are needed.
+/// When `precision > 8`, uses extended DC tables with symbols 12–15.
 pub(crate) fn write_dht<W: Write>(
     writer: &mut W,
     num_components: usize,
+    precision: u8,
 ) -> Result<(), EncodeError> {
-    use crate::huffman_encode::*;
+    use crate::constants::*;
 
-    // DC table 0 (luminance)
-    write_dht_table(writer, 0x00, &DC_LUM_LENGTHS, DC_LUM_VALUES)?;
+    // DC table 0 (luminance) — use 12-bit tables when precision > 8
+    if precision > 8 {
+        write_dht_table(writer, 0x00, &DC_LUM_LENGTHS_12BIT, DC_LUM_VALUES_12BIT)?;
+    } else {
+        write_dht_table(writer, 0x00, &DC_LUM_LENGTHS, DC_LUM_VALUES)?;
+    }
     // AC table 0 (luminance)
     write_dht_table(writer, 0x10, &AC_LUM_LENGTHS, AC_LUM_VALUES)?;
 
     if num_components > 1 {
-        // DC table 1 (chrominance)
-        write_dht_table(writer, 0x01, &DC_CHROM_LENGTHS, DC_CHROM_VALUES)?;
+        // DC table 1 (chrominance) — use 12-bit tables when precision > 8
+        if precision > 8 {
+            write_dht_table(writer, 0x01, &DC_CHROM_LENGTHS_12BIT, DC_CHROM_VALUES_12BIT)?;
+        } else {
+            write_dht_table(writer, 0x01, &DC_CHROM_LENGTHS, DC_CHROM_VALUES)?;
+        }
         // AC table 1 (chrominance)
         write_dht_table(writer, 0x11, &AC_CHROM_LENGTHS, AC_CHROM_VALUES)?;
     }

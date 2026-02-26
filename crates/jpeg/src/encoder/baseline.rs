@@ -9,51 +9,27 @@
 //! 5. **Huffman encode** – write DC and AC coefficients to the compressed bitstream
 
 use crate::component::Component;
-use crate::constants::ZIGZAG;
+use crate::constants::{
+    AC_CHROM_LENGTHS, AC_CHROM_VALUES, AC_LUM_LENGTHS, AC_LUM_VALUES, BASE_CHROMA_QT, BASE_LUMA_QT,
+    DC_CHROM_LENGTHS, DC_CHROM_LENGTHS_12BIT, DC_CHROM_VALUES, DC_CHROM_VALUES_12BIT,
+    DC_LUM_LENGTHS, DC_LUM_LENGTHS_12BIT, DC_LUM_VALUES, DC_LUM_VALUES_12BIT, ZIGZAG,
+};
 use crate::dct;
 use crate::error::EncodeError;
-use crate::huffman_encode::{
-    AC_CHROM_LENGTHS, AC_CHROM_VALUES, AC_LUM_LENGTHS, AC_LUM_VALUES, DC_CHROM_LENGTHS,
-    DC_CHROM_VALUES, DC_LUM_LENGTHS, DC_LUM_VALUES, HuffmanEncodeTable, encode_coefficient,
-};
+use crate::huffman_encode::{HuffmanEncodeTable, encode_coefficient};
 use crate::io::BitWriter;
-use crate::marker::{
-    Marker, write_app0, write_dht, write_dqt, write_marker, write_sof0, write_sos,
-};
+use crate::marker::{Marker, write_app0, write_dht, write_dqt, write_marker, write_sof, write_sos};
 use jpeg_common::color_space::ColorSpace;
 use jpeg_common::options::EncoderOptions;
 use std::io::Write;
 
-// ── Standard quantization tables (ITU-T T.81, Annex K, Table K.1 & K.2) ────
-
-#[rustfmt::skip]
-const BASE_LUMA_QT: [u8; 64] = [
-    16, 11, 10, 16, 24, 40, 51, 61,
-    12, 12, 14, 19, 26, 58, 60, 55,
-    14, 13, 16, 24, 40, 57, 69, 56,
-    14, 17, 22, 29, 51, 87, 80, 62,
-    18, 22, 37, 56, 68,109,103, 77,
-    24, 35, 55, 64, 81,104,113, 92,
-    49, 64, 78, 87,103,121,120,101,
-    72, 92, 95, 98,112,100,103, 99,
-];
-
-#[rustfmt::skip]
-const BASE_CHROMA_QT: [u8; 64] = [
-    17, 18, 24, 47, 99, 99, 99, 99,
-    18, 21, 26, 66, 99, 99, 99, 99,
-    24, 26, 56, 99, 99, 99, 99, 99,
-    47, 66, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99,
-];
-
 /// Compute a quality-scaled quantization table.
 ///
 /// Uses the IJG quality scaling formula (same as `write_dqt`).
-fn scaled_quant_table(base: &[u8; 64], quality: u8) -> [i32; 64] {
+/// For precision > 8 the table values are additionally scaled by
+/// `2^(precision-8)` so that quantized DCT coefficients stay in the same
+/// magnitude range as 8-bit, keeping the standard Huffman tables usable.
+fn scaled_quant_table(base: &[u8; 64], quality: u8, precision: u8) -> [i32; 64] {
     let q = if quality < 50 {
         (5000 / quality as i32) as u8
     } else {
@@ -61,9 +37,13 @@ fn scaled_quant_table(base: &[u8; 64], quality: u8) -> [i32; 64] {
     }
     .max(1);
 
+    let precision_scale: u32 = 1 << (precision.saturating_sub(8));
+    let max_val: u32 = if precision > 8 { 65535 } else { 255 };
     let mut table = [0i32; 64];
     for i in 0..64 {
-        table[i] = ((base[i] as u32 * q as u32) / 100).max(1).min(255) as i32;
+        table[i] = ((base[i] as u32 * q as u32 * precision_scale) / 100)
+            .max(1)
+            .min(max_val) as i32;
     }
     table
 }
@@ -116,8 +96,10 @@ pub(crate) fn encode_baseline<W: Write>(
     let colorspace = options.colorspace();
     let (h_samp, v_samp) = sampling_factors(options.chroma_subsampling());
 
+    let precision = options.precision();
+    let bytes_per_sample: usize = if precision > 8 { 2 } else { 1 };
     let num_components = colorspace.num_components();
-    let expected_size = width * height * num_components;
+    let expected_size = width * height * num_components * bytes_per_sample;
     if data.len() < expected_size {
         return Err(EncodeError::InvalidDimensions(format!(
             "Input data too small: expected {expected_size}, got {}",
@@ -128,13 +110,24 @@ pub(crate) fn encode_baseline<W: Write>(
     let components = build_components(colorspace, h_samp, v_samp);
 
     // Build quantization tables (row-major order, matching DCT output)
-    let luma_qt = scaled_quant_table(&BASE_LUMA_QT, quality);
-    let chroma_qt = scaled_quant_table(&BASE_CHROMA_QT, quality);
+    let luma_qt = scaled_quant_table(&BASE_LUMA_QT, quality, precision);
+    let chroma_qt = scaled_quant_table(&BASE_CHROMA_QT, quality, precision);
 
     // Build Huffman encoding tables
-    let dc_lum_ht = HuffmanEncodeTable::new(&DC_LUM_LENGTHS, DC_LUM_VALUES);
+    // For precision > 8, use extended DC tables with symbols 12–15.
+    let (dc_lum_lengths, dc_lum_values): (&[u8; 16], &[u8]) = if precision > 8 {
+        (&DC_LUM_LENGTHS_12BIT, DC_LUM_VALUES_12BIT)
+    } else {
+        (&DC_LUM_LENGTHS, DC_LUM_VALUES)
+    };
+    let (dc_chrom_lengths, dc_chrom_values): (&[u8; 16], &[u8]) = if precision > 8 {
+        (&DC_CHROM_LENGTHS_12BIT, DC_CHROM_VALUES_12BIT)
+    } else {
+        (&DC_CHROM_LENGTHS, DC_CHROM_VALUES)
+    };
+    let dc_lum_ht = HuffmanEncodeTable::new(dc_lum_lengths, dc_lum_values);
     let ac_lum_ht = HuffmanEncodeTable::new(&AC_LUM_LENGTHS, AC_LUM_VALUES);
-    let dc_chrom_ht = HuffmanEncodeTable::new(&DC_CHROM_LENGTHS, DC_CHROM_VALUES);
+    let dc_chrom_ht = HuffmanEncodeTable::new(dc_chrom_lengths, dc_chrom_values);
     let ac_chrom_ht = HuffmanEncodeTable::new(&AC_CHROM_LENGTHS, AC_CHROM_VALUES);
 
     // Select the forward DCT function
@@ -144,9 +137,9 @@ pub(crate) fn encode_baseline<W: Write>(
 
     write_marker(writer, Marker::SOI)?;
     write_app0(writer)?;
-    write_dqt(writer, quality)?;
-    write_sof0(writer, width as u16, height as u16, 8, &components)?;
-    write_dht(writer, num_components)?;
+    write_dqt(writer, quality, precision)?;
+    write_sof(writer, width as u16, height as u16, precision, &components)?;
+    write_dht(writer, num_components, precision)?;
     write_sos(writer, &components)?;
 
     // ── Encode entropy-coded image data ─────────────────────────────
@@ -212,12 +205,14 @@ pub(crate) fn encode_baseline<W: Write>(
                             v_samp_c,
                             h,
                             v,
+                            bytes_per_sample,
                             &mut block,
                         );
 
-                        // Level shift: subtract 128
+                        // Level shift: subtract 2^(precision-1)
+                        let level_shift = 1i32 << (precision - 1);
                         for val in block.iter_mut() {
-                            *val -= 128;
+                            *val -= level_shift;
                         }
 
                         // Forward DCT
@@ -273,6 +268,7 @@ fn fill_block(
     v_samp: usize,
     block_h: usize,
     block_v: usize,
+    bytes_per_sample: usize,
     block: &mut [i32; 64],
 ) {
     // Pixel coordinates of the top-left of this 8×8 block
@@ -297,8 +293,14 @@ fn fill_block(
             let sx = src_x.min(img_w - 1);
             let sy = src_y.min(img_h - 1);
 
-            let pixel_idx = (sy * img_w + sx) * num_components + component_index;
-            block[row * 8 + col] = data[pixel_idx] as i32;
+            let sample_idx = (sy * img_w + sx) * num_components + component_index;
+            block[row * 8 + col] = if bytes_per_sample == 2 {
+                // 16-bit samples stored as big-endian u16 (PGM P5 format)
+                let byte_idx = sample_idx * 2;
+                u16::from_be_bytes([data[byte_idx], data[byte_idx + 1]]) as i32
+            } else {
+                data[sample_idx] as i32
+            };
         }
     }
 }

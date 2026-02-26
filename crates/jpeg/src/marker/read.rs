@@ -269,8 +269,6 @@ pub(crate) fn read_quant_tables<R: std::io::BufRead>(
             }
             decoder.quantization_tables[table_id] = Some(un_zig_zag(&qt_16));
         }
-        decoder.quantization_tables[table_id as usize] =
-            Some(un_zig_zag(&buf[offset..offset + table_size]));
         offset += table_size;
     }
 
